@@ -1,0 +1,11 @@
+{
+  "slug": "coop-boss-access",
+  "title": "Co-op Boss Access",
+  "territory": "games-creative",
+  "user": "Friends running a quick shared-screen or multi-phone boss game who want cooperative roles and visual cues that remain understandable for players with depth-perception difficulty.",
+  "smallest_useful_product": "A local-network browser boss game: one host screen, phones as two-button controllers, roles that charge shields/boosts for each other, optional high-contrast ground markers and motion reduction.",
+  "success_measure": "In mixed-ability playtests, 80% of players can identify their role target and contribute an action within 30 seconds; average group completes a three-minute round without facilitator help.",
+  "artifact_class": "web-with-backend",
+  "monetization": "free",
+  "constraints": "Use WebSockets only for room state, include clear privacy language for local-room codes, avoid collecting accessibility data, and test color/contrast independently of motion cues."
+}
