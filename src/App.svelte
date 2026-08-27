@@ -167,7 +167,7 @@
 </script>
 
 <svelte:head>
-  <title>{page === 'privacy' ? 'Privacy' : page === 'terms' ? 'Terms' : page === 'join' ? 'Phone controller' : page === 'host' ? 'Host game' : 'Co-op Boss Access'} — Co-op Boss Access</title>
+  <title>{page === 'privacy' ? 'Privacy' : page === 'terms' ? 'Terms' : page === 'join' ? 'Phone controller' : page === 'host' ? 'Host game' : 'Beat the night dragon together'} — Co-op Boss Access</title>
 </svelte:head>
 
 <div class:reduced-motion={reducedMotion} class:high-contrast={highContrast} class="app-shell">
