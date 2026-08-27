@@ -1,0 +1,8 @@
+{
+  "model": "factory-image (Azure OpenAI image generation)",
+  "date": "2026-08-27",
+  "size": "1536x1024",
+  "quality": "high",
+  "prompt": "A friendly but formidable origami night dragon guarding a tiny cooperative arcade stall, two empty player plinths below it, left plinth with an abstract hexagonal ward motif and right plinth with an abstract four-point spark motif. Layered cut paper, screen-printed ink, weathered painted wood, neon tubes, night-market canopy. Straight-on theatrical stage, orthographic feel, crisp vertical alignment, no perspective floor, deep indigo night, warm lantern rim light, ink black, paper cream, lantern yellow, jade, electric blue, chili coral, restrained plum. Wide composition with breathing room, graphic editorial illustration, accessible high contrast silhouette. No text, no letters, no watermark, no logos, no brands, no real people, no copyrighted characters, no UI, no blurry shadows, no strobe effects.",
+  "review": "Accepted: coherent silhouette, no text artifacts, no people or branding, role plinth symbols are clear, and the composition supports vertically aligned markers."
+}
