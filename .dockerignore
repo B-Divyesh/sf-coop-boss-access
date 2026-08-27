@@ -1,0 +1,8 @@
+.git
+node_modules
+target
+dist
+data
+assets/src
+graphify-out
+*.log
