@@ -159,7 +159,7 @@ async fn main() {
 
 fn app(state: AppState) -> Router {
     let dist = std::env::var("DIST_DIR").unwrap_or_else(|_| "dist".into());
-    let fallback = ServeDir::new(&dist).not_found_service(ServeFile::new(Path::new(&dist).join("index.html")));
+    let fallback = ServeDir::new(&dist).fallback(ServeFile::new(Path::new(&dist).join("index.html")));
     Router::new()
         .route("/health", get(health))
         .route("/api/pageview", post(pageview))
@@ -204,6 +204,7 @@ async fn pageview(State(state): State<AppState>) -> StatusCode {
 }
 
 async fn security_headers(request: Request<Body>, next: Next) -> Response {
+    let path = request.uri().path().to_string();
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
     headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
@@ -213,6 +214,11 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"),
     );
+    if path.starts_with("/assets/") || path.starts_with("/fonts/") || path.starts_with("/art/") {
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"));
+    } else {
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
     response
 }
 
@@ -521,6 +527,8 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
 
     #[test]
     fn validates_room_inputs() {
@@ -556,5 +564,22 @@ mod tests {
         tick_room(&mut normal);
         tick_room(&mut boosted);
         assert!(boosted.boss_hp < normal.boss_hp);
+    }
+
+    #[tokio::test]
+    async fn health_and_anonymous_page_count_routes_work() {
+        let db = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        migrate(&db).await.unwrap();
+        let service = app(AppState { rooms: Arc::new(RwLock::new(HashMap::new())), db: db.clone() });
+
+        let health_response = service.clone().oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(health_response.status(), StatusCode::OK);
+        let body = health_response.into_body().collect().await.unwrap().to_bytes();
+        assert!(String::from_utf8_lossy(&body).contains("\"status\":\"ok\""));
+
+        let count_response = service.oneshot(Request::builder().method("POST").uri("/api/pageview").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(count_response.status(), StatusCode::NO_CONTENT);
+        let views: i64 = sqlx::query_scalar("SELECT views FROM daily_page_views LIMIT 1").fetch_one(&db).await.unwrap();
+        assert_eq!(views, 1);
     }
 }

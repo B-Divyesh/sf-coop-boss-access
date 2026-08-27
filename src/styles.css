@@ -3,7 +3,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 200 800;
-  src: url('@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2-variations');
+  src: url('/fonts/atkinson-hyperlegible-next-latin.woff2') format('woff2-variations');
 }
 
 @font-face {
@@ -11,7 +11,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url('@fontsource/bowlby-one-sc/files/bowlby-one-sc-latin-400-normal.woff2') format('woff2');
+  src: url('/fonts/bowlby-one-sc-latin.woff2') format('woff2');
 }
 
 :root {
@@ -151,7 +151,7 @@ progress::-moz-progress-bar { background: var(--role-color, var(--lantern)); }
 .join-board { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; border: 3px solid var(--lantern); box-shadow: 10px 12px 0 #4c3100; text-align: center; }
 .join-board::before { content: ''; position: absolute; inset: 10px; pointer-events: none; border: 1px dashed #7d6a38; }
 .sign-label { margin: 0; color: var(--chalk); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.room-code { margin: 10px 0; font-family: 'Bowlby One SC', sans-serif; color: var(--lantern); font-size: clamp(62px, 8vw, 112px); line-height: 1; letter-spacing: .12em; }
+.room-code { margin: 10px 0; font-family: 'Bowlby One SC', sans-serif; color: var(--lantern); font-size: clamp(54px, 6vw, 82px); line-height: 1; letter-spacing: .08em; }
 .join-address { margin-bottom: 18px; overflow-wrap: anywhere; color: var(--paper); }
 .join-board .text-button { align-self: center; }
 .copy-notice { min-height: 24px; margin: 8px 0 0; color: var(--jade); font-size: 15px; }

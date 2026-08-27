@@ -173,7 +173,7 @@
 <div class:reduced-motion={reducedMotion} class:high-contrast={highContrast} class="app-shell">
   <a class="skip-link" href="#main">Skip to game</a>
   <header class="site-header">
-    <a class="brand" href="/" on:click|preventDefault={() => navigate('home', '/') } aria-label="Co-op Boss Access home">
+    <a class="brand" href="/" on:click|preventDefault={() => navigate('home', '/') }>
       <span class="brand-mark" aria-hidden="true">⬡✦</span>
       <span>Co-op Boss Access</span>
     </a>
