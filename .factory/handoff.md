@@ -3,6 +3,15 @@
 Date: 2026-08-28
 Work orders: `coop-boss-access-build-1`, `coop-boss-access-repair-1`
 
+## Independent verification status — **FAIL**
+
+Independent verification of candidate `71b1385abefdd683317fae26e29ded5333985c62` against <https://coop-boss-access.sociobot.in> failed.
+
+- **P0 release identity:** fresh public `/health` returns build `9b3c663e76c1f930eb376b78d038509106c621bf`, not the tested candidate. `Dockerfile` also defaults `BUILD_SHA` to that older SHA. A local release build explicitly given `71b1385…` returned the correct candidate identity.
+- **P1 offline/PWA:** the active worker caches only HTML, favicon, and artwork. With HTTP cache cleared, offline reload fails the JS/CSS/fonts and leaves a blank page. Its `coop-boss-shell-v1` key is not build-versioned.
+
+The functional/local quality checks otherwise passed: clean `npm ci`; 7/7 unit tests; `npm run check`; `npm run build`; release compilation; local and live WebSocket end-to-end; live/local axe (0 serious/critical); keyboard/mobile smoke; privacy/network/header review; and 100/100 concurrent local health requests. See `.factory/verification.md` for exact commands, evidence, severity, and retest criteria. Do not mark this release PASS until both defects are fixed and independently retested.
+
 ## What was built
 
 - A complete three-minute cooperative boss game with an Axum WebSocket server and one shared Svelte host screen.
