@@ -9,6 +9,8 @@ RUN npm run build
 
 FROM rust:1.89-bookworm AS server
 WORKDIR /build
+ARG BUILD_SHA=9b3c663e76c1f930eb376b78d038509106c621bf
+ENV BUILD_SHA=$BUILD_SHA
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 RUN cargo build --release --locked && mkdir /build/data
