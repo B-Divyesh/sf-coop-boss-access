@@ -1,7 +1,7 @@
-# Co-op Boss Access — build handoff
+# Co-op Boss Access — product-QA handoff
 
-Date: 2026-08-27
-Work order: `coop-boss-access-build-1`
+Date: 2026-08-28
+Work orders: `coop-boss-access-build-1`, `coop-boss-access-repair-1`
 
 ## What was built
 
@@ -17,6 +17,7 @@ Work order: `coop-boss-access-build-1`
 - Privacy and terms routes, same-origin CSP/security headers, no third-party runtime scripts or fonts, a service-worker shell cache, and two self-hosted font files.
 - SQLite is limited to a single anonymous daily page-view aggregate. Room codes, names, connection IDs, accessibility preferences, and gameplay history are not persisted.
 - Multi-stage non-root distroless container configuration on port 8080 with graceful shutdown and `/health` build status.
+- Delivery repair: the Rust stage now receives the immutable candidate SHA at compile time. `/health` therefore identifies the shipped candidate instead of reporting `development`; no product behavior, visual system, artifact class, or deployment class changed.
 
 ## How to run and verify
 
@@ -39,6 +40,18 @@ docker run --rm -p 8080:8080 coop-boss-access
 
 ## Verification performed
 
+### Repair delivery QA — 2026-08-28
+
+- Recovered candidate: `9b3c663e76c1f930eb376b78d038509106c621bf`; focused delivery repair commit: `d568573834819ddf6432c8e2ed16e51a01de5400`.
+- Clean local frontend QA: `npm ci` completed with 0 reported vulnerabilities; `npm run build` passed and produced `dist/` (85.49 KB JavaScript and 20.06 KB CSS before gzip).
+- Clean local application QA: `npm test` passed (3/3 Vitest tests and 4/4 Rust tests); `npm run check` passed with 0 Svelte errors/warnings and `clippy -D warnings` clean; `cargo build --release --locked` passed.
+- Local container-path smoke: compiled with `BUILD_SHA=9b3c663e76c1f930eb376b78d038509106c621bf`; `GET /` returned 200 and `GET /health` returned `{"build":"9b3c663e76c1f930eb376b78d038509106c621bf","status":"ok"}`.
+- Fixed worker container delivery: ACR image `sociobotregistry.azurecr.io/sf-coop-boss-access:d56857383481` deployed as Container App revision `sf-coop-boss-access--0000002`. The worker registered `coop-boss-access.sociobot.in` before managed-certificate ordering; certificate issuance succeeded and the hostname is SNI-bound.
+- Public release checks: `GET https://coop-boss-access.sociobot.in/` → HTTP 200; `GET https://coop-boss-access.sociobot.in/health` → HTTP 200 with `{"build":"9b3c663e76c1f930eb376b78d038509106c621bf","status":"ok"}`.
+- Public browser QA: factory `verify-url.sh` passed at desktop and mobile screenshots with 585 ms navigation load, no console/page errors, title `Beat the night dragon together — Co-op Boss Access`, `lang="en"`, exactly one H1, a main landmark, 0 images missing `alt`, and 0 unlabeled buttons.
+- Public accessibility QA: `APP_URL=https://coop-boss-access.sociobot.in npm run test:a11y` passed with 0 serious/critical axe violations on `/`, `/host`, `/join`, `/privacy`, `/terms`, high-contrast host, reduced-motion host, and a connected phone controller.
+- Public end-to-end QA: `WS_URL=wss://coop-boss-access.sociobot.in/ws npm run test:e2e` passed; host plus WARD and SURGE controllers joined a real room, started play, and synchronized both shared powers.
+
 - `npm ci && npm run build`: pass; reproducible output at `dist/index.html`.
 - `npm test`: pass, 7/7 unit and HTTP integration tests.
 - `npm run check`: pass, 0 Svelte errors/warnings and clean `clippy -D warnings`.
@@ -50,7 +63,7 @@ docker run --rm -p 8080:8080 coop-boss-access
 - Load smoke: 500/500 `/health` requests succeeded with concurrency 50 in 2.268 s (about 220 requests/second).
 - Deep-link responses for `/privacy`, `/terms`, `/host`, and `/join`: HTTP 200.
 - Visual review completed for home, host lobby, and join screens at desktop and 390 px. The generated illustration has no text artifacts, brands, people, or misleading UI.
-- `cargo build --release --locked`: pass. The container recipe was reviewed, but no Docker/Podman executable is installed in this worker, so the assembled image could not be launched here.
+- `cargo build --release --locked`: pass. The repaired image was cloud-built and deployed through the factory container worker.
 
 ## Known gaps
 
@@ -61,5 +74,5 @@ docker run --rm -p 8080:8080 coop-boss-access
 ## Recommended next steps
 
 1. Run a five-group mixed-ability playtest and record time-to-first-action, completion rate, and any misunderstood cues.
-2. Validate the built container in the factory deployment runner and mount `/app/data` only if aggregate page counts should survive restarts.
+2. If aggregate page counts should survive restarts, mount `/app/data` through the factory deployment configuration.
 3. If concurrent room demand requires horizontal scaling, add sticky routing first; do not persist personal or accessibility data.
