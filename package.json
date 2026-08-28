@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "concurrently -k -n server,web -c magenta,cyan \"cargo run\" \"vite --host 0.0.0.0\"",
     "build": "vite build && node scripts/build-sw.mjs",
-    "test": "node tests/release-contract.mjs && vitest run && cargo test",
+    "test": "node tests/release-contract.mjs && vitest run && cargo test && node tests/runtime-contract.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "test:join-reliability": "JOIN_ONLY=1 E2E_ATTEMPTS=20 node tests/e2e.mjs",
+    "test:browser-joins": "node tests/browser-joins.mjs",
+    "test:rate-limit": "node tests/rate-limit.mjs",
+    "test:browser-quality": "node tests/browser-quality.mjs",
     "test:a11y": "node tests/a11y.mjs",
     "test:pwa": "node tests/pwa.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.json && cargo clippy --all-targets -- -D warnings"
@@ -26,7 +29,7 @@
     "@types/qrcode": "^1.5.5",
     "concurrently": "^9.2.1",
     "jsdom": "^26.1.0",
-    "playwright": "^1.55.0",
+    "playwright": "1.58.2",
     "svelte-check": "^4.3.1",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",

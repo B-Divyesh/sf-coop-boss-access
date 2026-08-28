@@ -225,7 +225,7 @@
             <p>The host screen shows the room code. Your name is visible only to this room.</p>
             <form class="join-form" on:submit|preventDefault={submitJoin} novalidate>
               <label for="room-code">Four-character room code</label>
-              <input id="room-code" bind:value={joinCode} on:input={() => joinCode = cleanCode(joinCode)} inputmode="text" autocomplete="off" maxlength="4" autocapitalize="characters" required aria-describedby="join-error" />
+              <input id="room-code" bind:value={joinCode} on:input={() => joinCode = cleanCode(joinCode)} inputmode="text" autocomplete="off" autocapitalize="characters" required aria-describedby="join-error" />
               <label for="player-name">Your display name</label>
               <input id="player-name" bind:value={playerName} autocomplete="nickname" maxlength="16" required aria-describedby="name-note join-error" />
               <small id="name-note">1–16 characters. It disappears when the room closes.</small>
@@ -351,7 +351,7 @@
         <p class="eyebrow">Plain-language policy</p><h1>Privacy</h1>
         <p class="lede">A room is temporary. We do not create profiles or collect accessibility information.</p>
         <h2>What the server sees</h2><p>While a room is open, the server holds its four-character code, display names, connection IDs, roles, and current game state in memory. This is needed to synchronize the host and phone controllers. The room disappears when the host disconnects or the service restarts.</p>
-        <h2>What is stored</h2><p>Your browser stores a random controller ID and your display preferences. Your name lasts only in the current browser tab. The server keeps one aggregate page-view number per day; it does not attach IP addresses, user agents, room codes, or player data to that number.</p>
+        <h2>What is stored</h2><p>Your browser stores a random controller ID and your display preferences. Your name lasts only in the current browser tab. The server keeps one aggregate page-view number per day; it does not attach IP addresses, user agents, room codes, or player data to that number. To prevent overload, the server temporarily counts connection and page-view requests by network address in memory. Those short-lived counts are not written to the database.</p>
         <h2>What is never collected</h2><p>No accounts, chat, precise location, advertising IDs, or accessibility settings. There are no third-party analytics, fonts, scripts, or trackers.</p>
         <h2>Room-code safety</h2><p>Anyone with a live room code can join. Share it only with the people playing, and close the host screen when the game is over.</p>
       </article>

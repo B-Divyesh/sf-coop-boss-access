@@ -33,6 +33,9 @@ npm run build  # reproducible frontend output in dist/
 cargo run      # serve dist/ and the backend on PORT (default 8080)
 npm run test:pwa  # 390 px cold-offline reload and service-worker update regression
 npm run test:join-reliability  # 20 independent host/controller joins (server required)
+npm run test:browser-joins  # 20 host/phone joins in isolated browser contexts
+npm run test:rate-limit  # rejection load for page views and WebSocket registration (server required)
+npm run test:browser-quality  # mobile, keyboard, reduced-motion, privacy, network, and headers
 ```
 
 The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous aggregate page count per UTC day. The default database is `data/coop.db`.
@@ -48,6 +51,14 @@ curl http://localhost:8080/health
 ```
 
 Mount `/app/data` only if the anonymous daily page count should survive restarts. Game rooms are always ephemeral. The deployed Container App is deliberately capped at one replica (`minReplicas=1`, `maxReplicas=1`): room state is live only in the host process, so scaling this v1 service horizontally would route controllers away from their host. Move room state to a shared realtime store before increasing that limit.
+
+Production releases use the checked deployment command, which builds the image with the full Git SHA, applies the one-replica invariant, reads it back, and waits for `/health` to identify as that SHA:
+
+```sh
+scripts/deploy-container.sh "$(git rev-parse HEAD)"
+```
+
+The server admits at most 256 rooms and 2,048 live sockets per process. WebSocket registrations and anonymous page-view requests also have short per-network-address burst limits; rate-limit counters remain in memory and are never added to analytics.
 
 ## Accessibility and controls
 

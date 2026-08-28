@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { copyFile, readFile, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { chromium } from 'playwright';
+
+const execFileAsync = promisify(execFile);
 
 const suppliedOrigin = process.env.APP_URL;
 const port = process.env.PWA_TEST_PORT ?? '18080';
@@ -31,6 +35,7 @@ const factoryChrome = '/opt/pw-browsers/chromium-1208/chrome-linux64/chrome';
 const browser = await chromium.launch(existsSync(factoryChrome) ? { executablePath: factoryChrome } : {});
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
+let changedStableAsset = false;
 
 try {
   await page.goto(origin, { waitUntil: 'networkidle' });
@@ -57,21 +62,52 @@ try {
   await page.evaluate(async () => {
     const old = await caches.open('coop-boss-shell-old-release');
     await old.put('/stale', new Response('stale'));
-    await Promise.all((await navigator.serviceWorker.getRegistrations()).map((registration) => registration.unregister()));
   });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.evaluate(() => navigator.serviceWorker.ready);
-  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   const cacheNames = await page.evaluate(() => caches.keys());
-  assert.ok(!cacheNames.includes('coop-boss-shell-old-release'), 'activation must remove a stale shell cache');
+
+  if (!suppliedOrigin) {
+    const beforeUpdate = cacheNames.find((key) => key.startsWith('coop-boss-shell-'));
+    const marker = `\n<!-- same-url-update-${Date.now()} -->\n`;
+    const favicon = await readFile('dist/favicon.svg', 'utf8');
+    await writeFile('dist/favicon.svg', `${favicon}${marker}`);
+    changedStableAsset = true;
+    await execFileAsync(process.execPath, ['scripts/build-sw.mjs']);
+    await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+    let update;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      update = await page.evaluate(async () => {
+        const keys = await caches.keys();
+        const favicons = [];
+        for (const key of keys.filter((name) => name.startsWith('coop-boss-shell-'))) {
+          const response = await (await caches.open(key)).match('/favicon.svg');
+          if (response) favicons.push(await response.text());
+        }
+        return { keys, favicons };
+      });
+      if (!update.keys.includes(beforeUpdate)
+        && !update.keys.includes('coop-boss-shell-old-release')
+        && update.favicons.some((favicon) => /same-url-update-\d+/.test(favicon))) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.ok(!update.keys.includes('coop-boss-shell-old-release'), 'activation must remove a stale shell cache');
+    assert.ok(!update.keys.includes(beforeUpdate), 'activation must remove the prior content cache');
+    assert.ok(update.favicons.some((favicon) => /same-url-update-\d+/.test(favicon)), 'updated worker must bypass the immutable HTTP cache for a changed stable URL');
+  } else {
+    await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+    await page.waitForFunction(() => caches.keys().then((keys) => !keys.includes('coop-boss-shell-old-release')));
+  }
 
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { level: 1 }).waitFor();
   assert.match(await page.locator('h1').innerText(), /Two roles\.\s*One dragon\./i);
-  console.log('PWA regression: versioned shell precaches JS/CSS/fonts, cleans an old cache, and cold offline reload renders the home screen.');
+  console.log('PWA regression: shell precache, real same-URL asset update, stale cleanup, and cold offline reload passed.');
 } finally {
   await browser.close();
+  if (changedStableAsset) {
+    await copyFile('public/favicon.svg', 'dist/favicon.svg');
+    await execFileAsync(process.execPath, ['scripts/build-sw.mjs']);
+  }
   if (server) {
     server.kill('SIGTERM');
     await new Promise((resolve) => server.once('exit', resolve));

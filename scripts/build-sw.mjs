@@ -19,7 +19,12 @@ for (const stylesheet of [...urls].filter((url) => url.endsWith('.css'))) {
 }
 
 const core = [...urls].sort();
-const version = createHash('sha256').update(core.join('\n')).digest('hex').slice(0, 12);
+const versionHash = createHash('sha256');
+for (const url of core) {
+  const file = url === '/' ? resolve(dist, 'index.html') : resolve(dist, `.${url}`);
+  versionHash.update(url).update('\0').update(await readFile(file)).update('\0');
+}
+const version = versionHash.digest('hex').slice(0, 12);
 const template = await readFile(resolve('public', 'sw.js'), 'utf8');
 const worker = template
   .replace("'coop-boss-shell-dev'", `'coop-boss-shell-${version}'`)

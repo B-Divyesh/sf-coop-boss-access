@@ -5,7 +5,8 @@ const CACHE = 'coop-boss-shell-dev';
 const CORE = ['/', '/favicon.svg', '/art/night-market-dragon.webp'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting()));
+  const fresh = CORE.map((url) => new Request(url, { cache: 'reload' }));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
