@@ -131,8 +131,9 @@ async fn main() {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite://data/coop.db?mode=rwc".into());
+    let database_url = std::env::var("DATABASE_URL").ok();
+    let database_source = if database_url.is_some() { "supplied" } else { "default" };
+    let database_url = database_url.unwrap_or_else(|| "sqlite://data/coop.db?mode=rwc".into());
     if database_url.starts_with("sqlite://data/") {
         std::fs::create_dir_all("data").expect("create data directory");
     }
@@ -147,10 +148,12 @@ async fn main() {
     tokio::spawn(game_clock(state.clone()));
 
     let app = app(state);
-    let port: u16 = std::env::var("PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(8080);
+    let port_value = std::env::var("PORT").ok();
+    let port_source = if port_value.is_some() { "supplied" } else { "default" };
+    let port: u16 = port_value.and_then(|v| v.parse().ok()).unwrap_or(8080);
     let address = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(address).await.expect("bind server");
-    info!(%address, "coop boss server ready");
+    info!(%address, database_source, port_source, "runtime configuration ready; coop boss server ready");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
@@ -182,7 +185,7 @@ async fn migrate(db: &SqlitePool) -> Result<(), sqlx::Error> {
 async fn health() -> impl IntoResponse {
     Json(serde_json::json!({
         "status": "ok",
-        "build": option_env!("BUILD_SHA").unwrap_or("development")
+        "build": option_env!("BUILD_SHA").unwrap_or("dev")
     }))
 }
 
@@ -575,7 +578,9 @@ mod tests {
         let health_response = service.clone().oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(health_response.status(), StatusCode::OK);
         let body = health_response.into_body().collect().await.unwrap().to_bytes();
-        assert!(String::from_utf8_lossy(&body).contains("\"status\":\"ok\""));
+        let health_json = String::from_utf8_lossy(&body);
+        assert!(health_json.contains("\"status\":\"ok\""));
+        assert!(health_json.contains("\"build\":\"dev\""));
 
         let count_response = service.oneshot(Request::builder().method("POST").uri("/api/pageview").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(count_response.status(), StatusCode::NO_CONTENT);

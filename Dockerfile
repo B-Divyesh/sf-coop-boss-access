@@ -9,7 +9,7 @@ RUN npm run build
 
 FROM rust:1.89-bookworm AS server
 WORKDIR /build
-ARG BUILD_SHA=9b3c663e76c1f930eb376b78d038509106c621bf
+ARG BUILD_SHA=dev
 ENV BUILD_SHA=$BUILD_SHA
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
@@ -22,8 +22,6 @@ COPY --from=web --chown=nonroot:nonroot /build/dist /app/dist
 COPY --from=server --chown=nonroot:nonroot /build/data /app/data
 COPY --chown=nonroot:nonroot migrations /app/migrations
 ENV PORT=8080
-ENV DATABASE_URL="sqlite://data/coop.db?mode=rwc"
-ENV RUST_LOG="coop_boss_access=info,tower_http=info"
 EXPOSE 8080
 USER nonroot
 ENTRYPOINT ["/app/coop-boss-access"]

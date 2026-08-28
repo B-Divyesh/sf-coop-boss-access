@@ -31,6 +31,8 @@ npm test       # Vitest and Rust tests
 npm run check  # Svelte diagnostics and strict Clippy
 npm run build  # reproducible frontend output in dist/
 cargo run      # serve dist/ and the backend on PORT (default 8080)
+npm run test:pwa  # 390 px cold-offline reload and service-worker update regression
+npm run test:join-reliability  # 20 independent host/controller joins (server required)
 ```
 
 The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous aggregate page count per UTC day. The default database is `data/coop.db`.
@@ -45,7 +47,7 @@ docker run --rm -p 8080:8080 coop-boss-access
 curl http://localhost:8080/health
 ```
 
-Mount `/app/data` only if the anonymous daily page count should survive restarts. Game rooms are always ephemeral.
+Mount `/app/data` only if the anonymous daily page count should survive restarts. Game rooms are always ephemeral. The deployed Container App is deliberately capped at one replica (`minReplicas=1`, `maxReplicas=1`): room state is live only in the host process, so scaling this v1 service horizontally would route controllers away from their host. Move room state to a shared realtime store before increasing that limit.
 
 ## Accessibility and controls
 
