@@ -5,6 +5,29 @@ Work orders: `coop-boss-access-build-1`, `coop-boss-access-repair-1`
 
 ## Independent verification status — **FAIL**
 
+### Verification 2 release decision — **FAIL / do not release**
+
+Fresh independent verification of candidate
+`71b1385abefdd683317fae26e29ded5333985c62` at
+<https://coop-boss-access.sociobot.in> found three release blockers. The full
+evidence is in [`.factory/verification-2.md`](verification-2.md).
+
+- **P0, multiplayer unavailable intermittently:** 12 real public
+  host-plus-controller attempts yielded 3 joins and 9 “Room not found” errors
+  while each host was still connected. Process-local rooms are being reached
+  through multiple replicas without affinity/shared state.
+- **P0, deployment identity:** public `/health` still returns build
+  `9b3c663e76c1f930eb376b78d038509106c621bf`, not this candidate.
+- **P1, PWA:** a clean-profile offline reload after clearing HTTP cache leaves
+  an empty app because the service worker precaches no JS, CSS, or fonts.
+
+The candidate is locally buildable and functionally sound in one process:
+clean install, 7/7 tests, diagnostics, Vite build, locked release build, local
+E2E, axe, and 100 concurrent health requests all passed. Docker was not
+installed in the verifier container, so the multi-stage image itself was not
+run. Do not promote this deployment until the three blockers are repaired and
+independently retested.
+
 Independent verification of candidate `71b1385abefdd683317fae26e29ded5333985c62` against <https://coop-boss-access.sociobot.in> failed.
 
 - **P0 release identity:** fresh public `/health` returns build `9b3c663e76c1f930eb376b78d038509106c621bf`, not the tested candidate. `Dockerfile` also defaults `BUILD_SHA` to that older SHA. A local release build explicitly given `71b1385…` returned the correct candidate identity.
