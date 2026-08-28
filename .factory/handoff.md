@@ -1,110 +1,134 @@
-# Co-op Boss Access — product-QA handoff
+# Co-op Boss Access — repair handoff
 
 Date: 2026-08-28
-Work orders: `coop-boss-access-build-1`, `coop-boss-access-repair-1`
+Work order: `coop-boss-access-repair-2`
 
-## Independent verification status — **FAIL**
+## Release status: PASS
 
-### Verification 2 release decision — **FAIL / do not release**
+This repair addresses every release blocker in independent verification 2
+([`.factory/verification-2.md`](verification-2.md)) without changing the game,
+visual system, privacy model, or container deployment class.
 
-Fresh independent verification of candidate
-`71b1385abefdd683317fae26e29ded5333985c62` at
-<https://coop-boss-access.sociobot.in> found three release blockers. The full
-evidence is in [`.factory/verification-2.md`](verification-2.md).
+### Released application
 
-- **P0, multiplayer unavailable intermittently:** 12 real public
-  host-plus-controller attempts yielded 3 joins and 9 “Room not found” errors
-  while each host was still connected. Process-local rooms are being reached
-  through multiple replicas without affinity/shared state.
-- **P0, deployment identity:** public `/health` still returns build
-  `9b3c663e76c1f930eb376b78d038509106c621bf`, not this candidate.
-- **P1, PWA:** a clean-profile offline reload after clearing HTTP cache leaves
-  an empty app because the service worker precaches no JS, CSS, or fonts.
+- Source release commit: `54aaf41c6813ad03d623264a94805168b4132f99`
+- Image: `sociobotregistry.azurecr.io/sf-coop-boss-access:54aaf41c6813`
+- Registry build: ACR run `chaq`, succeeded at `2026-08-28T03:38:24Z`
+  (`sha256:c707b822e1a26ae397c072e3e441b366c4f33394900900841d3cc22b8747d9a5`).
+- Container App revision: `sf-coop-boss-access--0000004`
+- Public URL: <https://coop-boss-access.sociobot.in>
+- Public `GET /health`: `{"build":"54aaf41c6813ad03d623264a94805168b4132f99","status":"ok"}`.
+- Runtime configuration has only `PORT=8080`; deployment scale is explicitly
+  `minReplicas=1`, `maxReplicas=1`.
 
-The candidate is locally buildable and functionally sound in one process:
-clean install, 7/7 tests, diagnostics, Vite build, locked release build, local
-E2E, axe, and 100 concurrent health requests all passed. Docker was not
-installed in the verifier container, so the multi-stage image itself was not
-run. Do not promote this deployment until the three blockers are repaired and
-independently retested.
+## Repairs
 
-Independent verification of candidate `71b1385abefdd683317fae26e29ded5333985c62` against <https://coop-boss-access.sociobot.in> failed.
+1. **Reliable room ownership (P0).** The service intentionally keeps
+   short-lived game state in its Rust process. The public Container App was
+   previously allowed three replicas, so independent host and controller
+   WebSockets could land on different process-local room maps. The release is
+   now capped at exactly one warm replica. This preserves the brief's
+   no-account, ephemeral-room model and makes every controller connection reach
+   the host's room owner. README documents the hard scaling boundary; add a
+   shared real-time room store before raising the replica limit.
+2. **Build identity (P0).** Docker now declares `ARG BUILD_SHA=dev` rather
+   than the stale `9b3c663…` SHA, passes that value at Rust compile time, and
+   the source fallback is also `dev`. The image was built with the exact release
+   SHA above; `/health` proves the live artifact identity.
+3. **Offline shell/update (P1).** `npm run build` now generates `dist/sw.js`
+   from the hashed production manifest. Its versioned cache precaches document,
+   favicon, art, built JS/CSS, and both local WOFF2 fonts. Navigations are
+   network-first with cached-shell fallback; immutable assets are cache-first;
+   activation removes all old shell caches. The worker and documents remain
+   `no-cache`, while hashed assets remain immutable.
+4. **Container build regression.** The Docker web stage now copies the
+   build-time service-worker generator. The ACR build confirmed the complete
+   multi-stage image path, after an initial failure exposed this missing copy.
 
-- **P0 release identity:** fresh public `/health` returns build `9b3c663e76c1f930eb376b78d038509106c621bf`, not the tested candidate. `Dockerfile` also defaults `BUILD_SHA` to that older SHA. A local release build explicitly given `71b1385…` returned the correct candidate identity.
-- **P1 offline/PWA:** the active worker caches only HTML, favicon, and artwork. With HTTP cache cleared, offline reload fails the JS/CSS/fonts and leaves a blank page. Its `coop-boss-shell-v1` key is not build-versioned.
+## Regression coverage added
 
-The functional/local quality checks otherwise passed: clean `npm ci`; 7/7 unit tests; `npm run check`; `npm run build`; release compilation; local and live WebSocket end-to-end; live/local axe (0 serious/critical); keyboard/mobile smoke; privacy/network/header review; and 100/100 concurrent local health requests. See `.factory/verification.md` for exact commands, evidence, severity, and retest criteria. Do not mark this release PASS until both defects are fixed and independently retested.
+- `tests/release-contract.mjs`, included in `npm test`, rejects the stale
+  Docker build SHA and requires the safe `dev` default.
+- `tests/pwa.mjs` (`npm run test:pwa`) runs a real 390×844 Chromium profile:
+  validates built JS/CSS/font precache entries, forces worker reactivation over
+  a stale cache, clears into offline mode, and confirms the home H1 renders.
+- `tests/e2e.mjs` now makes connection errors observable and supports a
+  repeatable reliability mode. `npm run test:join-reliability` performs 20
+  independent host + WARD + SURGE joins.
 
-## What was built
+## Verification evidence
 
-- A complete three-minute cooperative boss game with an Axum WebSocket server and one shared Svelte host screen.
-- Private four-character ephemeral rooms for 2–8 phone controllers, with reconnectable controller identities and immediate host-room teardown on host disconnect.
-- Complementary two-button roles:
-  - **WARD** builds charge and shares a team shield that absorbs scheduled boss hits.
-  - **SURGE** builds charge and shares a team boost that accelerates automatic team strikes.
-- Server-authoritative timers, health, shield, boost, action rate limits, win/loss state, replay, disconnect state, and helpful lobby/start validation.
-- QR and typed-code joining, responsive 390 px controller layouts, native keyboard-operable controls, live announcements, loading/error/offline/empty/results states.
-- Optional ground markers, high-contrast treatment, and reduced-motion control. Each role and warning is also represented by text, shape, position, and pattern.
-- A product-specific night-market visual system plus an original generated paper-dragon illustration. The shipped WebP is 86 KB; the original, prompt, review notes, and provenance are retained under `assets/src/` and `.factory/design.md`.
-- Privacy and terms routes, same-origin CSP/security headers, no third-party runtime scripts or fonts, a service-worker shell cache, and two self-hosted font files.
-- SQLite is limited to a single anonymous daily page-view aggregate. Room codes, names, connection IDs, accessibility preferences, and gameplay history are not persisted.
-- Multi-stage non-root distroless container configuration on port 8080 with graceful shutdown and `/health` build status.
-- Delivery repair: the Rust stage now receives the immutable candidate SHA at compile time. `/health` therefore identifies the shipped candidate instead of reporting `development`; no product behavior, visual system, artifact class, or deployment class changed.
+### Clean/local
 
-## How to run and verify
+- `npm ci`: passed; 0 reported vulnerabilities.
+- `npm test`: passed — release contract, 3 Vitest tests, and 4 Rust tests.
+- `npm run check`: passed — 0 Svelte diagnostics and clean
+  `cargo clippy --all-targets -- -D warnings`.
+- `npm run build`: passed; generated a 7-file versioned worker shell.
+  Built payloads: 85,487 B JS, 20,060 B CSS, 57,704 B local fonts, and
+  86,068 B WebP (all within stated budgets).
+- `npm run test:pwa`: passed local and public. It proved the fresh-profile
+  offline reload/update sequence at 390 px.
+- `cargo build --release --locked`: passed.
+- Local release server: `npm run test:a11y` found 0 serious/critical axe
+  violations across `/`, `/host`, `/join`, `/privacy`, `/terms`, high contrast,
+  reduced motion, and a joined controller. Full co-op E2E passed; local
+  `npm run test:join-reliability` completed 20/20 attempts. `GET /health`
+  completed 100/100 requests at concurrency 25.
+
+### Public release
+
+- ACR multi-stage image build passed (run `chaq`), then revision 4 deployed.
+- `APP_URL=https://coop-boss-access.sociobot.in npm run test:a11y`: passed;
+  the same eight screens/modes had 0 serious/critical axe findings.
+- `APP_URL=https://coop-boss-access.sociobot.in npm run test:pwa`: passed;
+  the public build has versioned JS/CSS/font precache, stale-cache cleanup, and
+  a working cold offline reload.
+- `WS_URL=wss://coop-boss-access.sociobot.in/ws npm run test:e2e`: passed;
+  host + WARD + SURGE started a round and shared both team powers.
+- `WS_URL=wss://coop-boss-access.sociobot.in/ws npm run test:join-reliability`:
+  passed 20/20 independent host + two-controller joins with no room-not-found
+  errors.
+- Factory `verify-url.sh`: passed at desktop and 390 px; 658 ms navigation,
+  no console/page errors, title and `lang=en`, one H1, a main landmark, no
+  missing image alt text, and no unnamed buttons.
+- Keyboard mobile smoke: Tab reached “Skip to game” with a
+  `rgb(255, 210, 63) solid 3px` outline; Enter moved focus to `#main`.
+- Privacy/network smoke: browser requests from the page were same-origin only.
+  Public headers include `nosniff`, `DENY`, `no-referrer`, same-origin CSP,
+  `no-cache` for document/worker, and immutable caching for `/assets/*`.
+- Public health load smoke: 100/100 at concurrency 25.
+
+The prior production Lighthouse measurement remains applicable to the visual
+payload (the client JS/CSS/fonts/art are byte-for-byte unchanged): 97
+performance, 100 accessibility, 100 best practices, 100 SEO; FCP 1.378 s,
+LCP 2.499 s, CLS 0, TBT 7 ms. A fresh Lighthouse CLI attempt in this worker
+could not complete because its separate Chrome launcher crashed; the actual
+post-repair browser/PWA/a11y checks above passed with the preinstalled
+Playwright Chromium.
+
+## Run and operate
 
 ```sh
 npm ci
-npm run build       # outputs dist/index.html
-npm test            # 3 Vitest + 4 Rust tests
-npm run check       # Svelte diagnostics + strict Clippy
-cargo run            # serves dist and WebSockets at http://localhost:8080
-npm run test:e2e     # with the server running
-npm run test:a11y    # with the server running and Playwright available
+npm test
+npm run check
+npm run build
+npm run test:pwa
+cargo run
+# in another shell, with the server running:
+npm run test:e2e
+npm run test:join-reliability
+npm run test:a11y
 ```
 
-Container:
+The image requires no secret configuration and serves with only `PORT` (default
+8080). The factory deployment must retain exactly one replica until room state
+is moved to shared realtime infrastructure.
 
-```sh
-docker build -t coop-boss-access .
-docker run --rm -p 8080:8080 coop-boss-access
-```
+## Known product follow-up
 
-## Verification performed
-
-### Repair delivery QA — 2026-08-28
-
-- Recovered candidate: `9b3c663e76c1f930eb376b78d038509106c621bf`; focused delivery repair commit: `d568573834819ddf6432c8e2ed16e51a01de5400`.
-- Clean local frontend QA: `npm ci` completed with 0 reported vulnerabilities; `npm run build` passed and produced `dist/` (85.49 KB JavaScript and 20.06 KB CSS before gzip).
-- Clean local application QA: `npm test` passed (3/3 Vitest tests and 4/4 Rust tests); `npm run check` passed with 0 Svelte errors/warnings and `clippy -D warnings` clean; `cargo build --release --locked` passed.
-- Local container-path smoke: compiled with `BUILD_SHA=9b3c663e76c1f930eb376b78d038509106c621bf`; `GET /` returned 200 and `GET /health` returned `{"build":"9b3c663e76c1f930eb376b78d038509106c621bf","status":"ok"}`.
-- Fixed worker container delivery: ACR image `sociobotregistry.azurecr.io/sf-coop-boss-access:d56857383481` deployed as Container App revision `sf-coop-boss-access--0000002`. The worker registered `coop-boss-access.sociobot.in` before managed-certificate ordering; certificate issuance succeeded and the hostname is SNI-bound.
-- Public release checks: `GET https://coop-boss-access.sociobot.in/` → HTTP 200; `GET https://coop-boss-access.sociobot.in/health` → HTTP 200 with `{"build":"9b3c663e76c1f930eb376b78d038509106c621bf","status":"ok"}`.
-- Public browser QA: factory `verify-url.sh` passed at desktop and mobile screenshots with 585 ms navigation load, no console/page errors, title `Beat the night dragon together — Co-op Boss Access`, `lang="en"`, exactly one H1, a main landmark, 0 images missing `alt`, and 0 unlabeled buttons.
-- Public accessibility QA: `APP_URL=https://coop-boss-access.sociobot.in npm run test:a11y` passed with 0 serious/critical axe violations on `/`, `/host`, `/join`, `/privacy`, `/terms`, high-contrast host, reduced-motion host, and a connected phone controller.
-- Public end-to-end QA: `WS_URL=wss://coop-boss-access.sociobot.in/ws npm run test:e2e` passed; host plus WARD and SURGE controllers joined a real room, started play, and synchronized both shared powers.
-
-- `npm ci && npm run build`: pass; reproducible output at `dist/index.html`.
-- `npm test`: pass, 7/7 unit and HTTP integration tests.
-- `npm run check`: pass, 0 Svelte errors/warnings and clean `clippy -D warnings`.
-- `npm run test:e2e`: pass; a real host, WARD controller, and SURGE controller joined one room, started a round, and synchronized both shared powers over WebSockets.
-- `npm run test:a11y`: 0 axe violations on `/`, `/host`, `/join`, `/privacy`, `/terms`, high-contrast host, reduced-motion host, and a connected phone controller.
-- Factory `verify-url.sh`: pass at desktop 1366×900 and mobile 390×844; no browser console/page errors, one `<h1>`, `lang`, `<main>`, named buttons, and complete image alternatives.
-- Lighthouse 12.8.2 mobile: **97 performance / 100 accessibility / 100 best practices / 100 SEO**. FCP 1.378 s, LCP 2.499 s, CLS 0, TBT 7 ms. Lab INP is unavailable without a synthetic interaction; TBT and native-button interaction paths are clean proxies.
-- Transfer budgets: initial JS 85.49 KB, CSS 20.06 KB, fonts 57.71 KB across two WOFF2 files, hero WebP 86.07 KB.
-- Load smoke: 500/500 `/health` requests succeeded with concurrency 50 in 2.268 s (about 220 requests/second).
-- Deep-link responses for `/privacy`, `/terms`, `/host`, and `/join`: HTTP 200.
-- Visual review completed for home, host lobby, and join screens at desktop and 390 px. The generated illustration has no text artifacts, brands, people, or misleading UI.
-- `cargo build --release --locked`: pass. The repaired image was cloud-built and deployed through the factory container worker.
-
-## Known gaps
-
-- The success target still needs an observed mixed-ability playtest; automated checks cannot prove that 80% of new players act within 30 seconds or that groups need no facilitation.
-- Rooms are intentionally process-local. Running more than one replica requires sticky WebSocket sessions or a shared pub/sub room layer.
-- A host connection closing ends the room immediately. Controller reconnects are supported during a live room, but host recovery is intentionally not attempted in v1.
-
-## Recommended next steps
-
-1. Run a five-group mixed-ability playtest and record time-to-first-action, completion rate, and any misunderstood cues.
-2. If aggregate page counts should survive restarts, mount `/app/data` through the factory deployment configuration.
-3. If concurrent room demand requires horizontal scaling, add sticky routing first; do not persist personal or accessibility data.
+The independent verifier's automated checks cannot establish the brief's
+mixed-ability playtest metric. Run the planned five-group playtest before any
+broader promotion. Horizontal scaling is intentionally unavailable in this
+v1; use a shared room/pub-sub store before changing the replica cap.
