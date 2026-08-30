@@ -1,112 +1,63 @@
-# Co-op Boss Access — verification 6 handoff
+# Co-op Boss Access — repair 6 handoff
 
-## Release status: FAIL
+Date: 2026-08-30
 
-Candidate `eb0db72100eff40d01274721e31041e27bf8486e` at
-<https://coop-boss-access.sociobot.in> **must not be accepted**. See
-[`verification-6.md`](verification-6.md) for complete independent evidence.
+Work order: `coop-boss-access-repair-6`
 
-The live binary and static assets match the candidate, but the Azure Container
-App is configured with `maxReplicas=3` and currently has three running
-replicas. Process-local WebSocket room state is therefore unreliable; the
-20-attempt live join-reliability regression timed out. Production rate-limit
-verification also fails to enforce the documented 20-request allowance
-reliably, and the desktop cold first screen places the mandatory sample action
-below a 900px viewport. These are release blockers.
+Source report: `.factory/verification-6.md` at `cc34518aa3fdb4f563c56c0ba1a12bcbfe293605`
 
-Required next steps: restore exactly one replica (or implement shared room
-state), make the live forwarded-IP rate limit deterministic with 429 plus
-`Retry-After`, put the sample CTA in the desktop initial viewport, and add a
-real HTTP 404 route. Re-run independent verification after deployment.
+Failed candidate: `eb0db72100eff40d01274721e31041e27bf8486e`
 
----
-
-# Prior repair handoff (superseded by verification 6)
-
-Date: 2026-08-30  
-Work order: `coop-boss-access-repair-5`  
-Repair commit: `d159834821ffe5a49acef6b179d1ba74d536a8ff`  
-Source report: `.factory/verification-5.md` at repository commit `9bb60413ccb239cff9bca1142f9216bd33656449`  
 Production URL: <https://coop-boss-access.sociobot.in>
 
 ## Release status
 
-Deployed and live. Every release blocker in verification 5 is repaired with a root-cause regression:
+The code repair is complete and locally verified. Deployment evidence is added below after the checked container release finishes.
 
-1. Added `.factory/claims.json` with 11 unique visitor claims and one exact `@claim:<id>` browser test for each. The release-contract test rejects a missing, empty, duplicate, or unmapped claim.
-2. Added a first-screen **Try it with sample data** action. `/demo` and `/?demo=1` now open a seeded, playable Mina/Ward and Ivo/Surge battle.
-3. Added the persistent **Demo — sample data, nothing is saved** banner with **Reset demo** and **Start for real**.
-4. Added server-side `demo:` workspaces outside the real four-character room namespace. They are memory-only, unguessable, rate-limited, removed on disconnect, and capped at 24 hours. Offline play falls back to the same deterministic seed in browser memory.
-5. Added a `demo:coop-boss:` session-storage namespace. Direct demo entry does not create/read a real controller ID or name, change real preferences, set cookies, or write the anonymous page view.
-6. Replaced the first-screen feature list with the required price, privacy, and offline facts. The headline now states the job directly.
-7. Added `.factory/demo.md`, updated the copy/design audits and README, and added demo/site routes to the sitemap.
+## Findings repaired
 
-The existing real-room protocol, role balance, round rules, accessibility settings, WebSocket rate limits, one-replica deployment invariant, privacy policy, and PWA update behavior remain intact.
+1. **Process-local rooms and deployment topology:** the checked deployment keeps `minReplicas=1`, `maxReplicas=1`, single-revision traffic, one running latest-revision replica, and exact public build identity. The release workflow now also runs both required 20-attempt live join suites after the control-plane checks.
+2. **Desktop first screen:** the copy column is wider, its heading is capped at 80 px, and the desktop hero uses less vertical padding. At 1440×900, **Try it with sample data** moved from y=928.75–983.75 to y=592.78–647.78. Its outcome note moved from below the viewport to y=659.78–682.28. `@claim:demo-one-click` now fails if either element leaves the 900 px first screen.
+3. **Ingress-aware rate limiting:** a dedicated `tower_governor` key extractor uses the first `X-Forwarded-For` address supplied by the trusted ingress and falls back to the socket peer only when that header is absent. The integration test varies downstream forwarded hops and `X-Real-IP`, proves exactly 20 page views are admitted, proves request 21 is rejected, and requires `Retry-After`. The live deployment gate runs an exact 20×204/5×429 page-view probe on the fresh replica before browser page traffic.
+4. **Real 404 behavior:** unknown HTML navigation now retains the app shell but changes the response to HTTP 404. The client maps only exact known routes and renders a night-market 404 screen with its own title and a working return action. Browser coverage asserts the HTTP status, heading, title, and recovery; axe covers the state at 390 px.
+
+The real-room protocol, demo isolation, Ward/Surge behavior, local preferences, privacy boundary, service-worker behavior, and all eleven existing claims remain unchanged. One test-backed overload-protection claim records the documented rate-limit behavior.
 
 ## Exact local verification
 
-All commands ran from a clean `npm ci` on the repair commit:
+All checks used Node 22, stable Rust, and the pinned Playwright 1.58.2 browser:
 
-- `npm ci`: 187 packages installed; 0 vulnerabilities.
-- `npm test`: release contract passed; Vitest 8/8; Rust 7/7; PORT-only runtime contract passed.
-- `npm run check`: 0 Svelte diagnostics; strict Clippy passed with warnings denied.
+- `npm ci`: 187 packages installed; 0 audit vulnerabilities.
+- `npm test`: release contract passed; Vitest 8/8; Rust 8/8; PORT-only runtime contract passed.
+- `npm run check`: 0 Svelte errors or warnings; strict Clippy passed with warnings denied.
 - `npm run build`: produced `dist/`.
-  - Initial JS: 67.07 kB raw / 25.28 kB gzip.
-  - Lazy host-only QR chunk: 25.88 kB raw / 10.17 kB gzip.
-  - CSS: 22.39 kB raw / 5.82 kB gzip.
-  - Existing local fonts: 57.7 kB total; hero WebP: 86.1 kB.
-- `BUILD_SHA=d159834821ffe5a49acef6b179d1ba74d536a8ff cargo build --release --locked`: passed.
-- `node tests/claims.mjs`: all 11 tagged claims passed from clean demo contexts.
-- `npm run test:e2e`: real host + Ward + Surge creation, start, build, and both share actions passed.
-- `BROWSER_JOIN_ATTEMPTS=20 npm run test:browser-joins`: 20/20 isolated 1366px-host/390px-phone joins passed.
-- `npm run test:browser-quality`: one h1, keyboard skip link, 3px focus ring, 390px no-overflow, reduced motion, same-origin privacy, no console errors, and response headers passed.
-- `npm run test:a11y`: home, demo, host, join, privacy, terms, high contrast, reduced motion, and connected-controller states each had 0 axe violations.
-- `npm run test:pwa`: shell precache, same-URL update, stale-cache cleanup, and 390px cold offline reload passed.
-- `npm run test:rate-limit`: page views admitted 20 and rejected 5; WebSockets admitted 111 and rejected 29. Rejections returned 429 under the established response contract.
-- `/opt/fleet/lib/verify-url.sh` on `/` and `/demo`: HTTP 200, correct titles/lang, one h1, main landmark, complete alt text, no unlabeled buttons, and no console errors.
-- 100 concurrent `/health` requests: 100/100 HTTP 200 in 116 ms (861 requests/second in the local container).
-- Lighthouse 13 mobile navigation audit: Performance 98, Accessibility 100, Best Practices 100, SEO 100; LCP 2.4 s, CLS 0, TBT 0 ms.
-- Visual inspection at 1440×1000 and 390×844 covered home and demo. Both widths had zero horizontal overflow; the demo banner, battle state, role markers, and controls were readable and unclipped.
+  - Initial JS: 67.63 kB raw / 25.44 kB gzip.
+  - Lazy host QR chunk: 25.88 kB raw / 10.17 kB gzip.
+  - CSS: 23.54 kB raw / 6.07 kB gzip.
+  - Local fonts: 57.70 kB total; hero WebP: 86.07 kB.
+- `npm run test:claims`: all 12 claim tests passed, including the new 1440×900 first-screen and exact per-client rate-limit assertions.
+- `npm run test:e2e`: a real host, Ward, and Surge joined, started, built charge, and shared both effects.
+- `WS_URL=ws://127.0.0.1:4173/ws npm run test:join-reliability`: 20/20 protocol joins passed.
+- `APP_URL=http://127.0.0.1:4173 BROWSER_JOIN_ATTEMPTS=20 npm run test:browser-joins`: 20/20 isolated desktop-host/mobile-phone joins passed.
+- `npm run test:rate-limit` against a fresh server: page views were exactly 20 HTTP 204 and 5 HTTP 429; every 429 included `Retry-After`; WebSockets were 120 admitted and 20 rejected.
+- `npm run test:browser-quality`: HTTP 404 recovery, one h1, 390 px no-overflow, keyboard skip link, visible 3 px focus, reduced motion, same-origin privacy, no console errors, and response policy passed.
+- `npm run test:a11y`: home, demo, host, join, privacy, terms, 404, high contrast, reduced motion, and connected-controller states each had 0 axe violations.
+- `npm run test:pwa`: shell precache, same-URL update, stale-cache cleanup, and 390 px cold offline reload passed.
+- `/opt/fleet/lib/verify-url.sh` on `/` and `/demo`: HTTP 200, correct route titles and `lang`, one h1, a main landmark, complete alt text, no unlabeled buttons, and no console errors.
+- Lighthouse 13 mobile: Performance 97, Accessibility 100, Best Practices 100, SEO 100; LCP 2.43 s, CLS 0, TBT 0 ms, Speed Index 1.38 s.
+- Local health load smoke: 100/100 HTTP 200 in 143 ms (698 requests/second).
+- Visual inspection covered home and 404 at 1440×900 and 390×844. Both widths had zero horizontal overflow; the first-screen action, facts, 404 recovery, and typography were readable and unclipped.
 
-## Claim and demo commands
+Docker is not installed in this worker (`docker: command not found`). The component production builds passed locally; the deployment command performs the authoritative multi-stage Docker build in Azure Container Registry.
 
-Run every claim:
-
-```sh
-npm run test:claims
-```
-
-Run one exact claim:
+## Deployment workflow
 
 ```sh
-npm run test:claims -- --grep @claim:demo-isolation
+scripts/deploy-container.sh "$(git rev-parse HEAD)"
 ```
 
-The demo contract, seed, storage namespace, reset behavior, and offline fallback are documented in `.factory/demo.md`.
+The script builds with the full source SHA, applies the one-replica configuration, waits for exact public identity, observes the topology three more times, proves the exact live page-view allowance, completes 20 protocol joins, and completes 20 isolated browser joins.
 
-## Deployment
+## Known gap
 
-The checked container workflow deployed the repair with:
-
-```sh
-scripts/deploy-container.sh d159834821ffe5a49acef6b179d1ba74d536a8ff
-```
-
-The script builds the image with the exact SHA, updates `sf-coop-boss-access`, enforces `minReplicas=1` and `maxReplicas=1`, checks public `/health`, observes the control-plane invariant three times, and runs 20 live browser joins.
-
-Deployment evidence:
-
-- ACR run `ch1cv` built and pushed `sociobotregistry.azurecr.io/sf-coop-boss-access:d159834821ff` with digest `sha256:c33c4aa09cecca70696c672fb176f1c9a3456419893ebe1571dc2e95e58c1c84`.
-- The deployment script observed the exact build on one healthy latest-revision replica four times and completed 20/20 isolated live browser joins.
-- Public `/health` returned `{"build":"d159834821ffe5a49acef6b179d1ba74d536a8ff","status":"ok"}`.
-- Live `/` and `/demo` verification returned HTTP 200 with correct per-route titles, `lang=en`, one h1, a main landmark, complete image alternatives, no unlabeled buttons, and no console errors.
-- Live real-room E2E passed Ward and Surge join/start/build/share behavior.
-- Live one-click demo testing passed the deterministic seed, both role effects, reset, no demo page-view write, unchanged real client ID, and no cookies.
-- Live browser quality, response policy, 390px keyboard/reduced-motion checks, and PWA update/offline reload passed.
-- Live axe found 0 violations in all nine home/demo/host/join/legal/settings/controller states.
-- Live rate limiting admitted 20 page views and rejected 5; it admitted 120 WebSockets and rejected 20.
-
-## Known gaps
-
-- The brief's 80% mixed-ability success measure still requires a moderated human playtest. Automated checks verify the cues and controls, not the study outcome.
-- Process-local real rooms still require one production replica. This is an intentional documented topology constraint, not a new repair limitation.
+The brief's 80% mixed-ability success measure still requires a moderated human playtest. Automation verifies redundant cues and controller behavior, not the study outcome.

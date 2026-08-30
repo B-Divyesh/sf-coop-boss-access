@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     path::Path,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use tokio::sync::{mpsc, OwnedSemaphorePermit, RwLock, Semaphore};
 use tower_governor::{
-    governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorLayer,
+    governor::GovernorConfigBuilder, key_extractor::KeyExtractor, GovernorError, GovernorLayer,
 };
 use tower_http::{
     services::{ServeDir, ServeFile},
@@ -38,6 +38,34 @@ const MAX_ROOMS: usize = 256;
 const MAX_CONNECTIONS: usize = 2_048;
 const WS_BURST_PER_IP: u32 = 120;
 const PAGEVIEW_BURST_PER_IP: u32 = 20;
+
+#[derive(Debug, Clone, Copy)]
+struct IngressClientIpKeyExtractor;
+
+impl KeyExtractor for IngressClientIpKeyExtractor {
+    type Key = IpAddr;
+
+    fn name(&self) -> &'static str {
+        "trusted ingress client IP"
+    }
+
+    fn extract<T>(&self, request: &Request<T>) -> Result<Self::Key, GovernorError> {
+        if let Some(value) = request.headers().get("x-forwarded-for") {
+            return value
+                .to_str()
+                .ok()
+                .and_then(|forwarded| forwarded.split(',').next())
+                .and_then(|first_hop| first_hop.trim().parse::<IpAddr>().ok())
+                .ok_or(GovernorError::UnableToExtractKey);
+        }
+
+        request
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|peer| peer.ip())
+            .ok_or(GovernorError::UnableToExtractKey)
+    }
+}
 
 #[derive(Clone)]
 struct AppState {
@@ -232,13 +260,13 @@ fn app(state: AppState) -> Router {
     let fallback =
         ServeDir::new(&dist).fallback(ServeFile::new(Path::new(&dist).join("index.html")));
     let websocket_limit = GovernorConfigBuilder::default()
-        .key_extractor(SmartIpKeyExtractor)
+        .key_extractor(IngressClientIpKeyExtractor)
         .per_second(1)
         .burst_size(WS_BURST_PER_IP)
         .finish()
         .expect("valid WebSocket rate limit");
     let pageview_limit = GovernorConfigBuilder::default()
-        .key_extractor(SmartIpKeyExtractor)
+        .key_extractor(IngressClientIpKeyExtractor)
         .per_second(1)
         .burst_size(PAGEVIEW_BURST_PER_IP)
         .finish()
@@ -317,6 +345,7 @@ async fn pageview(State(state): State<AppState>) -> StatusCode {
 async fn security_headers(request: Request<Body>, next: Next) -> Response {
     let path = request.uri().path().to_string();
     let mut response = next.run(request).await;
+    mark_unknown_html_as_not_found(&path, &mut response);
     let headers = response.headers_mut();
     headers.insert(
         header::X_CONTENT_TYPE_OPTIONS,
@@ -344,6 +373,29 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     }
     response
+}
+
+fn is_app_route(path: &str) -> bool {
+    let normalized = if path == "/" {
+        path
+    } else {
+        path.trim_end_matches('/')
+    };
+    matches!(
+        normalized,
+        "/" | "/demo" | "/host" | "/join" | "/privacy" | "/terms"
+    )
+}
+
+fn mark_unknown_html_as_not_found(path: &str, response: &mut Response) {
+    let is_html = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("text/html"));
+    if response.status() == StatusCode::OK && is_html && !is_app_route(path) {
+        *response.status_mut() = StatusCode::NOT_FOUND;
+    }
 }
 
 async fn ws_handler(
@@ -1015,33 +1067,66 @@ mod tests {
             limits: Arc::new(CapacityLimits::production()),
         });
 
-        let mut rejected = 0;
-        for _ in 0..=PAGEVIEW_BURST_PER_IP {
+        let mut statuses = Vec::new();
+        let mut retry_after = None;
+        for request_number in 0..=PAGEVIEW_BURST_PER_IP {
             let response = service
                 .clone()
                 .oneshot(
                     Request::builder()
                         .method("POST")
                         .uri("/api/pageview")
-                        .header("x-forwarded-for", "198.51.100.22")
+                        .header(
+                            "x-forwarded-for",
+                            format!("198.51.100.22, 10.0.0.{}", request_number + 1),
+                        )
+                        .header("x-real-ip", format!("203.0.113.{}", request_number + 1))
                         .body(Body::empty())
                         .unwrap(),
                 )
                 .await
                 .unwrap();
             if response.status() == StatusCode::TOO_MANY_REQUESTS {
-                rejected += 1;
+                retry_after = response
+                    .headers()
+                    .get(header::RETRY_AFTER)
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_owned);
             }
+            statuses.push(response.status());
         }
+        assert_eq!(
+            statuses[..PAGEVIEW_BURST_PER_IP as usize],
+            vec![StatusCode::NO_CONTENT; PAGEVIEW_BURST_PER_IP as usize]
+        );
+        assert_eq!(
+            statuses[PAGEVIEW_BURST_PER_IP as usize],
+            StatusCode::TOO_MANY_REQUESTS
+        );
         assert!(
-            rejected >= 1,
-            "a burst above the published quota must be rejected"
+            retry_after.is_some(),
+            "429 responses must tell clients when to retry"
         );
         let views: i64 = sqlx::query_scalar("SELECT views FROM daily_page_views LIMIT 1")
             .fetch_one(&db)
             .await
             .unwrap();
-        assert!(views <= i64::from(PAGEVIEW_BURST_PER_IP));
+        assert_eq!(views, i64::from(PAGEVIEW_BURST_PER_IP));
+
+        let other_client = service
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/pageview")
+                    .header("x-forwarded-for", "203.0.113.90, 198.51.100.22")
+                    .header("x-real-ip", "198.51.100.22")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(other_client.status(), StatusCode::NO_CONTENT);
 
         let unsupported = service
             .oneshot(
@@ -1055,6 +1140,25 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(unsupported.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[test]
+    fn unknown_html_routes_are_real_404_responses() {
+        let mut unknown = Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(Body::empty())
+            .unwrap();
+        mark_unknown_html_as_not_found("/not-a-real-page", &mut unknown);
+        assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+
+        let mut known = Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+            .body(Body::empty())
+            .unwrap();
+        mark_unknown_html_as_not_found("/demo/", &mut known);
+        assert_eq!(known.status(), StatusCode::OK);
     }
 
     #[tokio::test]

@@ -40,6 +40,7 @@ Color is never the only signal. Ward always uses a hexagonal shield and the word
 - Immediate pressed states use a 2 px downward transform and reduced shadow. Server acknowledgement updates a numeric meter and an `aria-live` sentence.
 - Host announcements are a single marquee: “Incoming hit”, “Shield caught it”, “Surge ready”, or the end result. There is no floating notification stack.
 - Demo mode keeps the same arena and role geometry, then places two compact sample-phone placards below it. A sticky plum-and-lantern strip keeps the sandbox boundary, reset action, and exit action visible without competing with battle state.
+- The 404 screen uses a tilted, hand-painted number sign with the same Ward and Surge marks. It returns visitors to the game without pretending the missing address is a valid screen.
 
 ## Depth and ground clarity
 

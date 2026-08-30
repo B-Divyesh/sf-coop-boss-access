@@ -40,6 +40,13 @@ try {
   assert.equal((await fetch(`${origin}/fonts/atkinson-hyperlegible-next-latin.woff2`)).headers.get('cache-control'), 'no-cache');
   assert.equal((await fetch(`${origin}/api/pageview`, { method: 'PUT' })).status, 405);
 
+  const missingResponse = await page.goto(`${origin}/not-a-real-page`, { waitUntil: 'networkidle' });
+  assert.equal(missingResponse.status(), 404, 'unknown routes must return HTTP 404');
+  await page.getByRole('heading', { level: 1, name: 'This game screen is not here' }).waitFor();
+  assert.equal(await page.title(), 'Page not found — Co-op Boss Access');
+  await page.getByRole('button', { name: 'Return to the game' }).click();
+  await page.getByRole('heading', { level: 1, name: 'Beat a boss together with phone controls' }).waitFor();
+
   const reducedContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   const reducedPage = await reducedContext.newPage();
   await reducedPage.goto(`${origin}/host`, { waitUntil: 'networkidle' });

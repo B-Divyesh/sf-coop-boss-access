@@ -59,8 +59,9 @@ img { display: block; max-width: 100%; }
 .connection.offline { color: var(--chili); }
 
 main { min-height: calc(100vh - 170px); }
-.home-grid { width: min(1320px, calc(100% - 32px)); min-height: min(760px, calc(100vh - 72px)); margin: 0 auto; display: grid; grid-template-columns: minmax(340px, .8fr) minmax(480px, 1.2fr); align-items: center; gap: clamp(32px, 6vw, 96px); padding: 56px 0; }
+.home-grid { width: min(1320px, calc(100% - 32px)); min-height: min(760px, calc(100vh - 72px)); margin: 0 auto; display: grid; grid-template-columns: minmax(520px, 1fr) minmax(420px, .92fr); align-items: center; gap: clamp(32px, 5vw, 72px); padding: 40px 0; }
 .home-copy { position: relative; z-index: 2; }
+.home-copy h1 { max-width: 13ch; font-size: clamp(52px, 5.6vw, 80px); }
 .eyebrow { margin: 0 0 12px; color: var(--lantern); font-size: 15px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 h1, h2, p { margin-top: 0; }
 h1 { max-width: 14ch; margin-bottom: 24px; font-family: 'Bowlby One SC', Impact, sans-serif; font-weight: 400; font-size: clamp(48px, 7.2vw, 104px); line-height: .96; letter-spacing: -.025em; text-wrap: balance; }
@@ -244,6 +245,15 @@ progress::-moz-progress-bar { background: var(--role-color, var(--lantern)); }
 .legal-page h1 { font-size: clamp(52px, 9vw, 84px); }
 .legal-page h2 { margin-top: 40px; font-size: 26px; }
 .legal-page p:not(.eyebrow):not(.lede) { color: var(--chalk); }
+.not-found-page { position: relative; overflow: hidden; width: min(920px, calc(100% - 32px)); min-height: 620px; margin: 48px auto 96px; padding: clamp(40px, 7vw, 88px); background: var(--stall); border: 2px solid #594871; box-shadow: 14px 16px 0 #05030a; }
+.not-found-page h1 { max-width: 11ch; font-size: clamp(50px, 8vw, 88px); }
+.not-found-page > p:not(.eyebrow) { max-width: 45ch; color: var(--chalk); }
+.not-found-page .button { margin-top: 16px; }
+.lost-sign { position: absolute; right: clamp(20px, 7vw, 70px); bottom: 34px; width: 190px; height: 190px; display: grid; place-items: center; color: var(--lantern); border: 5px solid currentColor; border-radius: 3px 56px 3px 56px; box-shadow: 0 0 28px rgba(255,210,63,.2); transform: rotate(4deg); }
+.lost-sign span { font-family: 'Bowlby One SC', sans-serif; font-size: 58px; }
+.lost-sign i { position: absolute; color: var(--jade); font-size: 28px; font-style: normal; }
+.lost-sign i:nth-child(2) { left: 18px; bottom: 16px; }
+.lost-sign i:last-child { top: 14px; right: 19px; color: var(--electric); }
 footer { width: min(1320px, calc(100% - 32px)); min-height: 98px; margin: auto; padding: 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; color: var(--chalk); border-top: 1px solid rgba(255,248,223,.16); font-size: 15px; }
 footer p { margin: 0; }
 footer nav { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; }
@@ -281,6 +291,9 @@ footer nav span { font-variant-numeric: tabular-nums; }
   .demo-banner > div { width: 100%; margin: 6px 0 0; justify-content: space-between; }
   .neon-label { left: -3%; font-size: 11px; }
   .hero-art { padding: 10px; }
+  .not-found-page { min-height: 620px; }
+  .lost-sign { position: relative; right: auto; bottom: auto; width: 140px; height: 140px; margin: 42px 0 0 auto; }
+  .lost-sign span { font-size: 44px; }
   .how ol { grid-template-columns: 1fr; gap: 18px; }
   .promise-list { gap: 12px; }
   .controller-page { padding: 28px 12px 64px; }

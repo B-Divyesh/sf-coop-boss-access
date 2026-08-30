@@ -93,10 +93,17 @@ const tests = [
   {
     id: 'demo-one-click',
     run: async ({ browser, origin }) => {
-      const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       const page = await context.newPage();
       await page.goto(origin, { waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: 'Try it with sample data' }).click();
+      const sampleAction = page.getByRole('button', { name: 'Try it with sample data' });
+      const [actionBox, noteBox] = await Promise.all([
+        sampleAction.boundingBox(),
+        page.getByText('The sample opens with two players ready.').boundingBox()
+      ]);
+      assert.ok(actionBox && actionBox.y >= 0 && actionBox.y + actionBox.height <= 900, `sample action is below the 900px desktop first screen at y=${actionBox?.y}`);
+      assert.ok(noteBox && noteBox.y >= 0 && noteBox.y + noteBox.height <= 900, `sample outcome note is below the 900px desktop first screen at y=${noteBox?.y}`);
+      await sampleAction.click();
       await page.waitForURL(`${origin}/demo`);
       await page.getByRole('heading', { level: 1, name: 'Try the sample battle' }).waitFor();
       await page.getByLabel('Demo controls').getByText('Demo — sample data, nothing is saved').waitFor();
@@ -343,6 +350,19 @@ const tests = [
       await context.close();
       const result = await execFileAsync('cargo', ['test', 'health_and_anonymous_page_count_routes_work'], { cwd: process.cwd() });
       assert.match(result.stdout, /test result: ok/);
+    }
+  },
+  {
+    id: 'per-client-rate-limit',
+    run: async ({ origin }) => {
+      const responses = await Promise.all(Array.from({ length: 25 }, () => fetch(`${origin}/api/pageview`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '192.0.2.220, 10.0.0.7' }
+      })));
+      assert.equal(responses.filter(({ status }) => status === 204).length, 20);
+      const rejected = responses.filter(({ status }) => status === 429);
+      assert.equal(rejected.length, 5);
+      assert.equal(rejected.every((response) => response.headers.has('retry-after')), true);
     }
   }
 ];

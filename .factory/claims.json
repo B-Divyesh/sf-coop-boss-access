@@ -4,7 +4,7 @@
     "claim": "Try a playable sample battle in one click, then reset it or start a real game.",
     "where": "landing first screen, demo banner, README",
     "test": "npm run test:claims -- --grep @claim:demo-one-click",
-    "sandbox": "fresh browser context; click the landing action; assert seeded players, persistent banner, reset, exit, and ?demo=1"
+    "sandbox": "fresh 1440x900 browser context; assert the action and outcome note are above the fold; click once; assert seeded players, persistent banner, reset, exit, and ?demo=1"
   },
   {
     "id": "role-effects",
@@ -75,5 +75,12 @@
     "where": "privacy page, README",
     "test": "npm run test:claims -- --grep @claim:anonymous-page-count",
     "sandbox": "fresh /demo request log plus isolated SQLite backend integration test"
+  },
+  {
+    "id": "per-client-rate-limit",
+    "claim": "Page-view overload protection admits a 20-request burst per client, then returns 429 with Retry-After.",
+    "where": "README architecture section",
+    "test": "npm run test:claims -- --grep @claim:per-client-rate-limit",
+    "sandbox": "fresh backend and unique forwarded client address; send 25 concurrent page views; assert exactly 20 HTTP 204 and 5 HTTP 429 with Retry-After"
   }
 ]

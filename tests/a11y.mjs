@@ -16,7 +16,7 @@ async function assertAccessible(target, label) {
   console.log(`${label}: ${results.violations.length} total, 0 serious/critical axe violations`);
 }
 
-for (const path of ['/', '/demo', '/host', '/join', '/privacy', '/terms']) {
+for (const path of ['/', '/demo', '/host', '/join', '/privacy', '/terms', '/not-a-real-page']) {
   await page.goto(`${origin}${path}`, { waitUntil: 'networkidle' });
   await assertAccessible(page, path);
 }

@@ -59,7 +59,7 @@ curl http://localhost:8080/health
 
 Mount `/app/data` only if the anonymous daily page count should survive restarts. Game rooms are always ephemeral. The deployed Container App is deliberately capped at one replica (`minReplicas=1`, `maxReplicas=1`): room state is live only in the host process, so scaling this v1 service horizontally would route controllers away from their host. Move room state to a shared realtime store before increasing that limit.
 
-Production releases use the checked deployment command. It builds with the full Git SHA, applies the one-replica invariant, and checks the live control plane. It then observes the invariant three times and runs 20 host-and-phone joins in separate browser contexts:
+Production releases use the checked deployment command. It builds with the full Git SHA, applies the one-replica invariant, and checks the live control plane. It then observes the invariant three times, checks the exact page-view limit, runs 20 protocol joins, and runs 20 host-and-phone joins in separate browser contexts:
 
 ```sh
 scripts/deploy-container.sh "$(git rev-parse HEAD)"
@@ -67,7 +67,7 @@ scripts/deploy-container.sh "$(git rev-parse HEAD)"
 
 The work-order deployer reads [`.factory/container-deploy.json`](.factory/container-deploy.json). A release fails unless Azure reports `minReplicas=1`, `maxReplicas=1`, exactly one running latest-revision replica, and the exact SHA from public `/health`.
 
-The server admits at most 256 rooms and 2,048 live sockets per process. WebSocket registrations and anonymous page-view requests also have short per-network-address burst limits; rate-limit counters remain in memory and are never added to analytics.
+The server admits at most 256 rooms and 2,048 live sockets per process. Page-view overload protection admits a 20-request burst per client, then returns 429 with `Retry-After`. The limiter uses the first client address supplied by the trusted production ingress. WebSocket registrations also have a short per-client burst limit. Rate-limit counters remain in memory and are never added to analytics.
 
 ## Accessibility and controls
 

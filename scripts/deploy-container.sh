@@ -50,7 +50,14 @@ for observation in 1 2 3; do
 done
 
 APP_URL="https://coop-boss-access.sociobot.in" \
+  RATE_LIMIT_SCOPE=pageview \
+  npm run test:rate-limit
+
+WS_URL="wss://coop-boss-access.sociobot.in/ws" \
+  npm run test:join-reliability
+
+APP_URL="https://coop-boss-access.sociobot.in" \
   BROWSER_JOIN_ATTEMPTS="${BROWSER_JOIN_ATTEMPTS:-20}" \
   npm run test:browser-joins
 
-echo "Deployed $release_sha as $image with one stable replica; 20 isolated browser joins passed."
+echo "Deployed $release_sha as $image with one stable replica; the live page-view limit, 20 protocol joins, and 20 isolated browser joins passed."

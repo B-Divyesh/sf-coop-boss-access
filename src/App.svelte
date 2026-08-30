@@ -3,7 +3,7 @@
   import { applyDemoAction, cleanCode, createDemoRoom, formatClock, hasReadyTeam, roleCopy } from './game';
   import type { Role, Room, ServerEvent } from './types';
 
-  type Page = 'home' | 'demo' | 'host' | 'join' | 'privacy' | 'terms';
+  type Page = 'home' | 'demo' | 'host' | 'join' | 'privacy' | 'terms' | 'notFound';
   type Connection = 'idle' | 'connecting' | 'online' | 'offline';
 
   let page: Page = routeFor(location.pathname, location.search);
@@ -45,12 +45,14 @@
   });
 
   function routeFor(path: string, search = ''): Page {
-    if (path.startsWith('/demo') || new URLSearchParams(search).get('demo') === '1') return 'demo';
-    if (path.startsWith('/host')) return 'host';
-    if (path.startsWith('/join')) return 'join';
-    if (path.startsWith('/privacy')) return 'privacy';
-    if (path.startsWith('/terms')) return 'terms';
-    return 'home';
+    const normalized = path === '/' ? path : path.replace(/\/+$/, '');
+    if (normalized === '/demo' || new URLSearchParams(search).get('demo') === '1') return 'demo';
+    if (normalized === '/host') return 'host';
+    if (normalized === '/join') return 'join';
+    if (normalized === '/privacy') return 'privacy';
+    if (normalized === '/terms') return 'terms';
+    if (normalized === '/') return 'home';
+    return 'notFound';
   }
 
   function titleFor(target: Page): string {
@@ -59,6 +61,7 @@
     if (target === 'join') return 'Phone controller — Co-op Boss Access';
     if (target === 'host') return 'Host game — Co-op Boss Access';
     if (target === 'demo') return 'Demo — Co-op Boss Access';
+    if (target === 'notFound') return 'Page not found — Co-op Boss Access';
     return 'Co-op Boss Access — beat a boss with phone controls';
   }
 
@@ -248,7 +251,7 @@
 
 <svelte:head>
   <title>{pageTitle}</title>
-  <link rel="canonical" href={`${location.origin}${page === 'home' ? '/' : `/${page}`}`} />
+  <link rel="canonical" href={`${location.origin}${page === 'home' ? '/' : page === 'notFound' ? location.pathname : `/${page}`}`} />
 </svelte:head>
 
 <div class:reduced-motion={reducedMotion} class:high-contrast={highContrast} class="app-shell">
@@ -468,7 +471,7 @@
         <h2>What is never collected</h2><p>No accounts, chat, precise location, advertising IDs, or accessibility settings. There are no third-party analytics, fonts, scripts, or trackers.</p>
         <h2>Room-code safety</h2><p>Anyone with a live room code can join. Share it only with the people playing, and close the host screen when the game is over.</p>
       </article>
-    {:else}
+    {:else if page === 'terms'}
       <article class="legal-page">
         <p class="eyebrow">Fair-play rules</p><h1>Terms</h1>
         <p class="lede">Co-op Boss Access is a free game provided as-is for casual group play.</p>
@@ -476,6 +479,14 @@
         <h2>Availability</h2><p>Rooms are deliberately temporary and may close if the host disconnects, the network changes, or the service restarts. There is no guarantee that a particular room or result will be retained.</p>
         <h2>Safety and ownership</h2><p>The game does not replace professional accessibility advice. The code is MIT licensed; the original generated scene is provided as part of this product and may not imply endorsement by any model provider.</p>
         <h2>Changes</h2><p>These terms may change as the game evolves. Continued use after an update means you accept the current terms.</p>
+      </article>
+    {:else}
+      <article class="not-found-page">
+        <div class="lost-sign" aria-hidden="true"><span>404</span><i>⬡</i><i>✦</i></div>
+        <p class="eyebrow">Page not found</p>
+        <h1>This game screen is not here</h1>
+        <p>The address may be old or mistyped. Return home to start a sample battle or host a game.</p>
+        <button class="button primary" on:click={() => navigate('home', '/')}>Return to the game</button>
       </article>
     {/if}
   </main>
