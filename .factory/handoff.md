@@ -8,7 +8,7 @@ Production URL: <https://coop-boss-access.sociobot.in>
 
 ## Release status
 
-Ready for deployment. Every release blocker in verification 5 is repaired with a root-cause regression:
+Deployed and live. Every release blocker in verification 5 is repaired with a root-cause regression:
 
 1. Added `.factory/claims.json` with 11 unique visitor claims and one exact `@claim:<id>` browser test for each. The release-contract test rejects a missing, empty, duplicate, or unmapped claim.
 2. Added a first-screen **Try it with sample data** action. `/demo` and `/?demo=1` now open a seeded, playable Mina/Ward and Ivo/Surge battle.
@@ -63,13 +63,25 @@ The demo contract, seed, storage namespace, reset behavior, and offline fallback
 
 ## Deployment
 
-Deploy this repair through the checked container workflow:
+The checked container workflow deployed the repair with:
 
 ```sh
 scripts/deploy-container.sh d159834821ffe5a49acef6b179d1ba74d536a8ff
 ```
 
 The script builds the image with the exact SHA, updates `sf-coop-boss-access`, enforces `minReplicas=1` and `maxReplicas=1`, checks public `/health`, observes the control-plane invariant three times, and runs 20 live browser joins.
+
+Deployment evidence:
+
+- ACR run `ch1cv` built and pushed `sociobotregistry.azurecr.io/sf-coop-boss-access:d159834821ff` with digest `sha256:c33c4aa09cecca70696c672fb176f1c9a3456419893ebe1571dc2e95e58c1c84`.
+- The deployment script observed the exact build on one healthy latest-revision replica four times and completed 20/20 isolated live browser joins.
+- Public `/health` returned `{"build":"d159834821ffe5a49acef6b179d1ba74d536a8ff","status":"ok"}`.
+- Live `/` and `/demo` verification returned HTTP 200 with correct per-route titles, `lang=en`, one h1, a main landmark, complete image alternatives, no unlabeled buttons, and no console errors.
+- Live real-room E2E passed Ward and Surge join/start/build/share behavior.
+- Live one-click demo testing passed the deterministic seed, both role effects, reset, no demo page-view write, unchanged real client ID, and no cookies.
+- Live browser quality, response policy, 390px keyboard/reduced-motion checks, and PWA update/offline reload passed.
+- Live axe found 0 violations in all nine home/demo/host/join/legal/settings/controller states.
+- Live rate limiting admitted 20 page views and rejected 5; it admitted 120 WebSockets and rejected 20.
 
 ## Known gaps
 
