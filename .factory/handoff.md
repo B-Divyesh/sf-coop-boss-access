@@ -12,7 +12,7 @@ Production URL: <https://coop-boss-access.sociobot.in>
 
 ## Release status
 
-The code repair is complete and locally verified. Deployment evidence is added below after the checked container release finishes.
+Repaired, deployed, and live. The functional repair is commit `db5368a9ea357c93c51024b66724dc37948dc848`. The documentation-only commit containing this finalized record is also deployed through the same checked workflow before handoff, so production and `main` retain the same identity.
 
 ## Findings repaired
 
@@ -31,7 +31,7 @@ All checks used Node 22, stable Rust, and the pinned Playwright 1.58.2 browser:
 - `npm test`: release contract passed; Vitest 8/8; Rust 8/8; PORT-only runtime contract passed.
 - `npm run check`: 0 Svelte errors or warnings; strict Clippy passed with warnings denied.
 - `npm run build`: produced `dist/`.
-  - Initial JS: 67.63 kB raw / 25.44 kB gzip.
+  - SHA-stamped initial JS: 67.67 kB raw / 25.48 kB gzip.
   - Lazy host QR chunk: 25.88 kB raw / 10.17 kB gzip.
   - CSS: 23.54 kB raw / 6.07 kB gzip.
   - Local fonts: 57.70 kB total; hero WebP: 86.07 kB.
@@ -48,15 +48,27 @@ All checks used Node 22, stable Rust, and the pinned Playwright 1.58.2 browser:
 - Local health load smoke: 100/100 HTTP 200 in 143 ms (698 requests/second).
 - Visual inspection covered home and 404 at 1440×900 and 390×844. Both widths had zero horizontal overflow; the first-screen action, facts, 404 recovery, and typography were readable and unclipped.
 
-Docker is not installed in this worker (`docker: command not found`). The component production builds passed locally; the deployment command performs the authoritative multi-stage Docker build in Azure Container Registry.
+Docker is not installed in this worker (`docker: command not found`). The authoritative multi-stage Docker build passed in Azure Container Registry.
 
-## Deployment workflow
+## Deployment evidence
 
 ```sh
-scripts/deploy-container.sh "$(git rev-parse HEAD)"
+scripts/deploy-container.sh db5368a9ea357c93c51024b66724dc37948dc848
 ```
 
-The script builds with the full source SHA, applies the one-replica configuration, waits for exact public identity, observes the topology three more times, proves the exact live page-view allowance, completes 20 protocol joins, and completes 20 isolated browser joins.
+- ACR run `ch1es` built and pushed `sociobotregistry.azurecr.io/sf-coop-boss-access:db5368a9ea35` with digest `sha256:5bb7299d05b28dd154d1d8a4e7529041acd0132a22cffb73cc13f6d94700407f` from the `.git`-free source archive.
+- The deployment script observed the exact build on one healthy latest-revision replica four times. Azure reported `minReplicas=1`, `maxReplicas=1`, single-revision traffic, and exactly one running replica.
+- The fresh live page-view probe returned exactly 20 HTTP 204 and 5 HTTP 429 responses. Every rejection included `Retry-After`.
+- `WS_URL=wss://coop-boss-access.sociobot.in/ws npm run test:join-reliability`: 20/20 live protocol joins passed.
+- `APP_URL=https://coop-boss-access.sociobot.in BROWSER_JOIN_ATTEMPTS=20 npm run test:browser-joins`: 20/20 isolated live desktop-host/mobile-controller joins passed.
+- Public `/health` returned `{"build":"db5368a9ea357c93c51024b66724dc37948dc848","status":"ok"}`. A later deployment-state read again found the exact image, identity, and one-replica topology.
+- Live real-room E2E passed host, Ward, Surge, start, build, and both share effects.
+- Live browser quality, response policy, 390 px keyboard/reduced-motion checks, and PWA update/offline reload passed.
+- Live axe found zero violations across home, demo, host, join, privacy, terms, 404, high contrast, reduced motion, and connected-controller states.
+- Live `/` and `/demo` URL verification returned HTTP 200 with correct titles, `lang=en`, one h1, a main landmark, complete image alternatives, no unlabeled buttons, and no console errors.
+- Live `/not-a-real-page` returned HTTP 404 and the designed recovery screen. At 1440×900, the sample action was y=592.78–647.78 and its outcome note was y=659.78–682.28.
+- Live Lighthouse 13 mobile: Performance 98, Accessibility 100, Best Practices 100, SEO 100; LCP 2.16 s, CLS 0, TBT 0 ms, Speed Index 1.37 s.
+- A live 100-request concurrent health smoke returned 100/100 HTTP 200 with the exact build in 306 ms.
 
 ## Known gap
 
