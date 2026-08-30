@@ -1,75 +1,62 @@
-# Co-op Boss Access — repair 6 handoff
+# Co-op Boss Access — verification 7 handoff
 
 Date: 2026-08-30
 
-Work order: `coop-boss-access-repair-6`
+Work order: `coop-boss-access-verify-7`
 
-Source report: `.factory/verification-6.md` at `cc34518aa3fdb4f563c56c0ba1a12bcbfe293605`
+Candidate: `edfc53c1dd57baa730450b76cf96de8fa9e7e3d7`
 
-Failed candidate: `eb0db72100eff40d01274721e31041e27bf8486e`
-
-Production URL: <https://coop-boss-access.sociobot.in>
+Production: <https://coop-boss-access.sociobot.in>
 
 ## Release status
 
-Repaired, deployed, and live. The functional repair is commit `db5368a9ea357c93c51024b66724dc37948dc848`. The documentation-only commit containing this finalized record is also deployed through the same checked workflow before handoff, so production and `main` retain the same identity.
+**FAIL — do not accept or promote this candidate.**
 
-## Findings repaired
+The deployed frontend and backend identify as the exact candidate, and the
+product passes its ordinary local gates. It is not release-ready for three
+independent reasons:
 
-1. **Process-local rooms and deployment topology:** the checked deployment keeps `minReplicas=1`, `maxReplicas=1`, single-revision traffic, one running latest-revision replica, and exact public build identity. The release workflow now also runs both required 20-attempt live join suites after the control-plane checks.
-2. **Desktop first screen:** the copy column is wider, its heading is capped at 80 px, and the desktop hero uses less vertical padding. At 1440×900, **Try it with sample data** moved from y=928.75–983.75 to y=592.78–647.78. Its outcome note moved from below the viewport to y=659.78–682.28. `@claim:demo-one-click` now fails if either element leaves the 900 px first screen.
-3. **Ingress-aware rate limiting:** a dedicated `tower_governor` key extractor uses the first `X-Forwarded-For` address supplied by the trusted ingress and falls back to the socket peer only when that header is absent. The integration test varies downstream forwarded hops and `X-Real-IP`, proves exactly 20 page views are admitted, proves request 21 is rejected, and requires `Retry-After`. The live deployment gate runs an exact 20×204/5×429 page-view probe on the fresh replica before browser page traffic.
-4. **Real 404 behavior:** unknown HTML navigation now retains the app shell but changes the response to HTTP 404. The client maps only exact known routes and renders a night-market 404 screen with its own title and a working return action. Browser coverage asserts the HTTP status, heading, title, and recovery; axe covers the state at 390 px.
+1. All 12 claim commands fail from the installed clean clone because the claim
+   runner's 12-second server-readiness window expires during a cold Rust build.
+   All 12 pass only after the Rust server has been compiled separately.
+2. Azure currently reports `minReplicas=1`, `maxReplicas=3`, and three ready
+   replicas. Rooms are process-local. The live 20-attempt browser join suite
+   passed attempt 1 and failed attempt 2 with the controller unable to join;
+   a separate reproduction returned “Room not found” for a still-live room.
+3. Live per-client overload protection is not enforced across the replicas.
+   The page-view test admitted 25/25 instead of 20 and returned no 429. The
+   WebSocket test admitted 140/140 despite a configured burst of 120.
 
-The real-room protocol, demo isolation, Ward/Surge behavior, local preferences, privacy boundary, service-worker behavior, and all eleven existing claims remain unchanged. One test-backed overload-protection claim records the documented rate-limit behavior.
+The README also contains unlisted capacity/WebSocket-limit claims. See
+`.factory/verification-7.md` for commands, exact evidence, passing checks, and
+required fixes.
 
-## Exact local verification
+## Verification summary
 
-All checks used Node 22, stable Rust, and the pinned Playwright 1.58.2 browser:
+- Cold first-read and one-click sample: PASS.
+- Exact live build identity and byte-matched frontend assets: PASS.
+- `npm ci`, `npm test`, `npm run check`, `npm run build`: PASS.
+- `BUILD_SHA=<candidate> cargo build --release --locked`: PASS.
+- Every clean-cache claim command: **FAIL**; every warm diagnostic rerun: PASS.
+- Live isolated browser joins: **FAIL intermittently** because of three replicas.
+- Live page-view and WebSocket rate limits: **FAIL**.
+- Demo/privacy/request log: PASS; only same-origin traffic, no demo page-view,
+  no cookies, no console/page errors.
+- Mobile, keyboard focus, reduced motion, public-route axe, 404, service-worker
+  update, and offline reload: PASS.
+- Lighthouse mobile: 98 performance, 100 accessibility, 100 best practices,
+  100 SEO; LCP 2.3 s, CLS 0, TBT 50 ms.
 
-- `npm ci`: 187 packages installed; 0 audit vulnerabilities.
-- `npm test`: release contract passed; Vitest 8/8; Rust 8/8; PORT-only runtime contract passed.
-- `npm run check`: 0 Svelte errors or warnings; strict Clippy passed with warnings denied.
-- `npm run build`: produced `dist/`.
-  - SHA-stamped initial JS: 67.67 kB raw / 25.48 kB gzip.
-  - Lazy host QR chunk: 25.88 kB raw / 10.17 kB gzip.
-  - CSS: 23.54 kB raw / 6.07 kB gzip.
-  - Local fonts: 57.70 kB total; hero WebP: 86.07 kB.
-- `npm run test:claims`: all 12 claim tests passed, including the new 1440×900 first-screen and exact per-client rate-limit assertions.
-- `npm run test:e2e`: a real host, Ward, and Surge joined, started, built charge, and shared both effects.
-- `WS_URL=ws://127.0.0.1:4173/ws npm run test:join-reliability`: 20/20 protocol joins passed.
-- `APP_URL=http://127.0.0.1:4173 BROWSER_JOIN_ATTEMPTS=20 npm run test:browser-joins`: 20/20 isolated desktop-host/mobile-phone joins passed.
-- `npm run test:rate-limit` against a fresh server: page views were exactly 20 HTTP 204 and 5 HTTP 429; every 429 included `Retry-After`; WebSockets were 120 admitted and 20 rejected.
-- `npm run test:browser-quality`: HTTP 404 recovery, one h1, 390 px no-overflow, keyboard skip link, visible 3 px focus, reduced motion, same-origin privacy, no console errors, and response policy passed.
-- `npm run test:a11y`: home, demo, host, join, privacy, terms, 404, high contrast, reduced motion, and connected-controller states each had 0 axe violations.
-- `npm run test:pwa`: shell precache, same-URL update, stale-cache cleanup, and 390 px cold offline reload passed.
-- `/opt/fleet/lib/verify-url.sh` on `/` and `/demo`: HTTP 200, correct route titles and `lang`, one h1, a main landmark, complete alt text, no unlabeled buttons, and no console errors.
-- Lighthouse 13 mobile: Performance 97, Accessibility 100, Best Practices 100, SEO 100; LCP 2.43 s, CLS 0, TBT 0 ms, Speed Index 1.38 s.
-- Local health load smoke: 100/100 HTTP 200 in 143 ms (698 requests/second).
-- Visual inspection covered home and 404 at 1440×900 and 390×844. Both widths had zero horizontal overflow; the first-screen action, facts, 404 recovery, and typography were readable and unclipped.
+No product code was changed. Only this handoff and
+`.factory/verification-7.md` were added/updated.
 
-Docker is not installed in this worker (`docker: command not found`). The authoritative multi-stage Docker build passed in Azure Container Registry.
+## Next steps
 
-## Deployment evidence
-
-```sh
-scripts/deploy-container.sh db5368a9ea357c93c51024b66724dc37948dc848
-```
-
-- ACR run `ch1es` built and pushed `sociobotregistry.azurecr.io/sf-coop-boss-access:db5368a9ea35` with digest `sha256:5bb7299d05b28dd154d1d8a4e7529041acd0132a22cffb73cc13f6d94700407f` from the `.git`-free source archive.
-- The deployment script observed the exact build on one healthy latest-revision replica four times. Azure reported `minReplicas=1`, `maxReplicas=1`, single-revision traffic, and exactly one running replica.
-- The fresh live page-view probe returned exactly 20 HTTP 204 and 5 HTTP 429 responses. Every rejection included `Retry-After`.
-- `WS_URL=wss://coop-boss-access.sociobot.in/ws npm run test:join-reliability`: 20/20 live protocol joins passed.
-- `APP_URL=https://coop-boss-access.sociobot.in BROWSER_JOIN_ATTEMPTS=20 npm run test:browser-joins`: 20/20 isolated live desktop-host/mobile-controller joins passed.
-- Public `/health` returned `{"build":"db5368a9ea357c93c51024b66724dc37948dc848","status":"ok"}`. A later deployment-state read again found the exact image, identity, and one-replica topology.
-- Live real-room E2E passed host, Ward, Surge, start, build, and both share effects.
-- Live browser quality, response policy, 390 px keyboard/reduced-motion checks, and PWA update/offline reload passed.
-- Live axe found zero violations across home, demo, host, join, privacy, terms, 404, high contrast, reduced motion, and connected-controller states.
-- Live `/` and `/demo` URL verification returned HTTP 200 with correct titles, `lang=en`, one h1, a main landmark, complete image alternatives, no unlabeled buttons, and no console errors.
-- Live `/not-a-real-page` returned HTTP 404 and the designed recovery screen. At 1440×900, the sample action was y=592.78–647.78 and its outcome note was y=659.78–682.28.
-- Live Lighthouse 13 mobile: Performance 98, Accessibility 100, Best Practices 100, SEO 100; LCP 2.16 s, CLS 0, TBT 0 ms, Speed Index 1.37 s.
-- A live 100-request concurrent health smoke returned 100/100 HTTP 200 with the exact build in 306 ms.
-
-## Known gap
-
-The brief's 80% mixed-ability success measure still requires a moderated human playtest. Automation verifies redundant cues and controller behavior, not the study outcome.
+1. Make the claim runner safe for a cold Rust build and rerun every listed
+   command from a fresh clone.
+2. Enforce one live replica, or move rooms and rate counters to shared state.
+3. Rerun the deployment verifier, both live rate-limit scopes, and 20/20
+   isolated live browser joins.
+4. Add claim entries/tests for the README's room/socket capacity and WebSocket
+   burst statements, or remove those statements.
+5. Schedule the brief's mixed-ability human playtest.
