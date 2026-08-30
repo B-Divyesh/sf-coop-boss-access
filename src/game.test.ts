@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanCode, formatClock, hasReadyTeam } from './game';
+import { applyDemoAction, cleanCode, createDemoRoom, formatClock, hasReadyTeam } from './game';
 
 describe('game display helpers', () => {
   it('formats the three-minute clock', () => {
@@ -15,5 +15,18 @@ describe('game display helpers', () => {
   it('requires both complementary roles', () => {
     expect(hasReadyTeam([{ role: 'ward', connected: true }, { role: 'surge', connected: true }])).toBe(true);
     expect(hasReadyTeam([{ role: 'ward', connected: true }, { role: 'surge', connected: false }])).toBe(false);
+  });
+
+  it('resets the sample room and applies both role actions without changing the seed', () => {
+    const seed = createDemoRoom();
+    const wardBuilt = applyDemoAction(seed, 'ward', 'build');
+    const shielded = applyDemoAction(wardBuilt, 'ward', 'share');
+    const boosted = applyDemoAction(shielded, 'surge', 'share');
+
+    expect(seed.players[0].meter).toBe(30);
+    expect(wardBuilt.players[0].meter).toBe(40);
+    expect(shielded.shield).toBe(48);
+    expect(boosted.boost).toBe(28);
+    expect(createDemoRoom()).toEqual(seed);
   });
 });

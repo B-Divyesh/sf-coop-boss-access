@@ -9,15 +9,14 @@ Words are counted by space-separated spoken units. Hyphenated terms count as one
 | Co-op Boss Access | 3 |
 | Join a room | 3 |
 | A three-minute team battle | 4 |
-| Two roles. | 2 |
-| One dragon. | 2 |
-| Turn this screen into the boss arena. | 7 |
-| Friends use their phones to build shields and boost everyone’s strikes. | 11 |
+| Beat a boss together with phone controls | 7 |
+| For friends sharing one screen, phones become clear two-button controls with no account. | 13 |
+| Try it with sample data | 5 |
 | Host a game | 3 |
-| Use this phone | 3 |
-| Clear role shapes | 3 |
-| No account | 2 |
-| Local room code | 3 |
+| The sample opens with two players ready. | 7 |
+| Free to play | 3 |
+| Room data vanishes when the host leaves | 8 |
+| Reloads offline after your first visit | 7 |
 | WARD + SURGE | 2 |
 | A paper-cut night dragon behind two controller plinths marked with a hexagon and a four-point star. | 16 |
 | Every cue uses a shape, word, and position—not color alone. | 11 |
@@ -29,13 +28,18 @@ Words are counted by space-separated spoken units. Hyphenated terms count as one
 | Friends scan or enter one short code. | 7 |
 | Share | 1 |
 | Build charge, then protect or boost the whole team. | 9 |
+| What the game does not keep | 6 |
+| No profiles, chat, or player history | 6 |
+| Live room data stays in server memory. | 7 |
+| Display settings stay in this browser. | 6 |
+| Read the privacy policy | 4 |
 | Built for cooperative, mixed-ability play. | 5 |
 | Dragon artwork was generated for this game. | 7 |
 | Privacy | 1 |
 | Terms | 1 |
 | Source | 1 |
 
-No landing-page sentence exceeds 22 words. No banned marketing word appears. The former untested “under 30 seconds” line and decorative stall labels were replaced with direct instructions.
+No landing-page sentence exceeds 22 words. No banned marketing word appears. The first screen names the job, audience, first action, price, privacy behavior, and offline behavior.
 
 ## Terminology
 

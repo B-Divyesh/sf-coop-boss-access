@@ -39,6 +39,7 @@ Color is never the only signal. Ward always uses a hexagonal shield and the word
 - Each controller exposes exactly two large buttons: build the personal meter, then share the earned team effect. A short written cause-and-effect line sits above them.
 - Immediate pressed states use a 2 px downward transform and reduced shadow. Server acknowledgement updates a numeric meter and an `aria-live` sentence.
 - Host announcements are a single marquee: “Incoming hit”, “Shield caught it”, “Surge ready”, or the end result. There is no floating notification stack.
+- Demo mode keeps the same arena and role geometry, then places two compact sample-phone placards below it. A sticky plum-and-lantern strip keeps the sandbox boundary, reset action, and exit action visible without competing with battle state.
 
 ## Depth and ground clarity
 

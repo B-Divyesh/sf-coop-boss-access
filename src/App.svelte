@@ -1,47 +1,51 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import QRCode from 'qrcode';
-  import { cleanCode, formatClock, hasReadyTeam, roleCopy } from './game';
-  import type { Player, Role, Room, ServerEvent } from './types';
+  import { onMount, tick } from 'svelte';
+  import { applyDemoAction, cleanCode, createDemoRoom, formatClock, hasReadyTeam, roleCopy } from './game';
+  import type { Role, Room, ServerEvent } from './types';
 
-  type Page = 'home' | 'host' | 'join' | 'privacy' | 'terms';
+  type Page = 'home' | 'demo' | 'host' | 'join' | 'privacy' | 'terms';
   type Connection = 'idle' | 'connecting' | 'online' | 'offline';
 
-  let page: Page = routeFor(location.pathname);
+  let page: Page = routeFor(location.pathname, location.search);
   let socket: WebSocket | null = null;
   let connection: Connection = 'idle';
-  let room: Room | null = null;
+  let room: Room | null = page === 'demo' ? createDemoRoom() : null;
   let joinCode = cleanCode(new URLSearchParams(location.search).get('room') ?? '');
-  let playerName = sessionStorage.getItem('controller-name') ?? '';
+  let playerName = page === 'demo' ? '' : sessionStorage.getItem('controller-name') ?? '';
   let error = '';
   let notice = '';
   let qrSource = '';
   let qrFor = '';
   let isHost = false;
-  let reducedMotion = localStorage.getItem('reduced-motion') === 'true';
-  let highContrast = localStorage.getItem('high-contrast') === 'true';
-  let groundMarkers = localStorage.getItem('ground-markers') !== 'false';
-  const clientId = getClientId();
+  let clientId = '';
+  let reducedMotion = readSetting('reduced-motion', false, page === 'demo');
+  let highContrast = readSetting('high-contrast', false, page === 'demo');
+  let groundMarkers = readSetting('ground-markers', true, page === 'demo');
+  let routeNotice = '';
+  const buildId = (import.meta.env.VITE_BUILD_SHA || 'dev').slice(0, 12);
 
   $: me = room?.players.find((player) => player.id === clientId) ?? null;
   $: role = me?.role ?? null;
   $: joinUrl = room ? `${location.origin}/join?room=${room.code}` : '';
-  $: if (room?.code && isHost) createQr(joinUrl);
+  $: if (room?.code && isHost && page !== 'demo') createQr(joinUrl);
+  $: pageTitle = titleFor(page);
 
   onMount(() => {
     const pop = () => {
-      page = routeFor(location.pathname);
       closeSocket();
+      activatePage(routeFor(location.pathname, location.search));
     };
     window.addEventListener('popstate', pop);
     if (page === 'host') connectHost();
+    if (page === 'demo') connectDemo();
     return () => {
       window.removeEventListener('popstate', pop);
       closeSocket();
     };
   });
 
-  function routeFor(path: string): Page {
+  function routeFor(path: string, search = ''): Page {
+    if (path.startsWith('/demo') || new URLSearchParams(search).get('demo') === '1') return 'demo';
     if (path.startsWith('/host')) return 'host';
     if (path.startsWith('/join')) return 'join';
     if (path.startsWith('/privacy')) return 'privacy';
@@ -49,22 +53,49 @@
     return 'home';
   }
 
+  function titleFor(target: Page): string {
+    if (target === 'privacy') return 'Privacy — Co-op Boss Access';
+    if (target === 'terms') return 'Terms — Co-op Boss Access';
+    if (target === 'join') return 'Phone controller — Co-op Boss Access';
+    if (target === 'host') return 'Host game — Co-op Boss Access';
+    if (target === 'demo') return 'Demo — Co-op Boss Access';
+    return 'Co-op Boss Access — beat a boss with phone controls';
+  }
+
   function getClientId(): string {
+    if (clientId) return clientId;
     const existing = localStorage.getItem('coop-client-id');
-    if (existing) return existing;
-    const id = crypto.randomUUID();
-    localStorage.setItem('coop-client-id', id);
-    return id;
+    if (existing) {
+      clientId = existing;
+      return clientId;
+    }
+    clientId = crypto.randomUUID();
+    localStorage.setItem('coop-client-id', clientId);
+    return clientId;
   }
 
   function navigate(next: Page, path: string): void {
     closeSocket();
     history.pushState({}, '', path);
+    activatePage(next);
+  }
+
+  function activatePage(next: Page): void {
+    const wasDemo = page === 'demo';
     page = next;
-    room = null;
+    room = next === 'demo' ? createDemoRoom() : null;
     error = '';
     notice = '';
+    loadSettings(next === 'demo');
+    if (wasDemo && next !== 'demo') clearDemoStorage();
     if (next === 'host') connectHost();
+    if (next === 'demo') connectDemo();
+    routeNotice = titleFor(next);
+    void tick().then(() => {
+      const heading = document.querySelector<HTMLElement>('main h1');
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus();
+    });
   }
 
   function wsAddress(): string {
@@ -106,7 +137,12 @@
   }
 
   function connectHost(): void {
-    openSocket({ type: 'create', client_id: clientId }, true);
+    openSocket({ type: 'create', client_id: getClientId() }, true);
+  }
+
+  function connectDemo(): void {
+    const demoClientId = `demo-${crypto.randomUUID()}`;
+    openSocket({ type: 'demo', client_id: demoClientId }, true);
   }
 
   function submitJoin(): void {
@@ -122,7 +158,7 @@
     }
     sessionStorage.setItem('controller-name', playerName);
     history.replaceState({}, '', `/join?room=${joinCode}`);
-    openSocket({ type: 'join', code: joinCode, name: playerName, client_id: clientId }, false);
+    openSocket({ type: 'join', code: joinCode, name: playerName, client_id: getClientId() }, false);
   }
 
   function retry(): void {
@@ -132,6 +168,29 @@
 
   function send(message: object): void {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+  }
+
+  function demoAction(role: Role, action: 'build' | 'share'): void {
+    if (!room) return;
+    if (socket?.readyState === WebSocket.OPEN) {
+      send({ type: 'demo_action', role, action });
+    } else {
+      room = applyDemoAction(room, role, action);
+    }
+  }
+
+  function resetDemo(): void {
+    clearDemoStorage();
+    reducedMotion = false;
+    highContrast = false;
+    groundMarkers = true;
+    room = createDemoRoom();
+    if (socket?.readyState === WebSocket.OPEN) send({ type: 'demo_reset' });
+  }
+
+  function startForReal(): void {
+    clearDemoStorage();
+    navigate('home', '/');
   }
 
   function closeSocket(): void {
@@ -144,6 +203,7 @@
   async function createQr(url: string): Promise<void> {
     if (!url || qrFor === url) return;
     qrFor = url;
+    const { default: QRCode } = await import('qrcode');
     qrSource = await QRCode.toDataURL(url, {
       width: 224,
       margin: 2,
@@ -162,43 +222,76 @@
   }
 
   function saveSetting(key: string, value: boolean): void {
-    localStorage.setItem(key, String(value));
+    if (page === 'demo') sessionStorage.setItem(`demo:coop-boss:${key}`, String(value));
+    else localStorage.setItem(key, String(value));
+  }
+
+  function readSetting(key: string, fallback: boolean, demo: boolean): boolean {
+    const value = demo
+      ? sessionStorage.getItem(`demo:coop-boss:${key}`)
+      : localStorage.getItem(key);
+    return value === null ? fallback : value === 'true';
+  }
+
+  function loadSettings(demo: boolean): void {
+    reducedMotion = readSetting('reduced-motion', false, demo);
+    highContrast = readSetting('high-contrast', false, demo);
+    groundMarkers = readSetting('ground-markers', true, demo);
+  }
+
+  function clearDemoStorage(): void {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith('demo:coop-boss:')) sessionStorage.removeItem(key);
+    }
   }
 </script>
 
 <svelte:head>
-  <title>{page === 'privacy' ? 'Privacy' : page === 'terms' ? 'Terms' : page === 'join' ? 'Phone controller' : page === 'host' ? 'Host game' : 'Beat the night dragon together'} — Co-op Boss Access</title>
+  <title>{pageTitle}</title>
+  <link rel="canonical" href={`${location.origin}${page === 'home' ? '/' : `/${page}`}`} />
 </svelte:head>
 
 <div class:reduced-motion={reducedMotion} class:high-contrast={highContrast} class="app-shell">
   <a class="skip-link" href="#main">Skip to game</a>
+  <p class="sr-only" aria-live="polite">{routeNotice}</p>
   <header class="site-header">
     <a class="brand" href="/" on:click|preventDefault={() => navigate('home', '/') }>
       <span class="brand-mark" aria-hidden="true">⬡✦</span>
       <span>Co-op Boss Access</span>
     </a>
-    {#if page === 'host' || (page === 'join' && room)}
+    {#if page === 'demo'}
+      <span class="connection"><span aria-hidden="true"></span>Sample room</span>
+    {:else if page === 'host' || (page === 'join' && room)}
       <span class:offline={connection !== 'online'} class="connection"><span aria-hidden="true"></span>{connection === 'online' ? 'Live' : connection}</span>
     {:else}
       <a class="small-link" href="/join" on:click|preventDefault={() => navigate('join', '/join')}>Join a room</a>
     {/if}
   </header>
 
+  {#if page === 'demo'}
+    <aside class="demo-banner" data-connection={connection} aria-label="Demo controls">
+      <strong>Demo — sample data, nothing is saved</strong>
+      <span>{connection === 'offline' ? 'Offline copy; the sample controls still work.' : 'Mina and Ivo are ready in an isolated sample room.'}</span>
+      <div><button class="text-button" on:click={resetDemo}>Reset demo</button><button class="button secondary" on:click={startForReal}>Start for real</button></div>
+    </aside>
+  {/if}
+
   <main id="main" tabindex="-1">
     {#if page === 'home'}
       <section class="home-grid" aria-labelledby="home-title">
         <div class="home-copy">
           <p class="eyebrow">A three-minute team battle</p>
-          <h1 id="home-title">Two roles.<br />One dragon.</h1>
-          <p class="lede">Turn this screen into the boss arena. Friends use their phones to build shields and boost everyone’s strikes.</p>
+          <h1 id="home-title">Beat a boss together with phone controls</h1>
+          <p class="lede">For friends sharing one screen, phones become clear two-button controls with no account.</p>
           <div class="home-actions">
-            <button class="button primary" on:click={() => navigate('host', '/host')}>Host a game <span aria-hidden="true">→</span></button>
-            <a class="button secondary" href="/join" on:click|preventDefault={() => navigate('join', '/join')}>Use this phone</a>
+            <button class="button primary" on:click={() => navigate('demo', '/demo')}>Try it with sample data <span aria-hidden="true">→</span></button>
+            <button class="button secondary" on:click={() => navigate('host', '/host')}>Host a game</button>
+            <span class="action-note">The sample opens with two players ready.</span>
           </div>
-          <ul class="promise-list" aria-label="Game features">
-            <li><span aria-hidden="true">⬡</span> Clear role shapes</li>
-            <li><span aria-hidden="true">◉</span> No account</li>
-            <li><span aria-hidden="true">⌁</span> Local room code</li>
+          <ul class="promise-list" aria-label="Price, privacy, and offline facts">
+            <li><span aria-hidden="true">◉</span> Free to play</li>
+            <li><span aria-hidden="true">⌁</span> Room data vanishes when the host leaves</li>
+            <li><span aria-hidden="true">↓</span> Reloads offline after your first visit</li>
           </ul>
         </div>
         <figure class="hero-art">
@@ -215,6 +308,12 @@
           <li><strong>Join</strong><span>Friends scan or enter one short code.</span></li>
           <li><strong>Share</strong><span>Build charge, then protect or boost the whole team.</span></li>
         </ol>
+      </section>
+      <section class="privacy-note" aria-labelledby="privacy-note-title">
+        <p class="eyebrow">What the game does not keep</p>
+        <h2 id="privacy-note-title">No profiles, chat, or player history</h2>
+        <p>Live room data stays in server memory. Display settings stay in this browser.</p>
+        <a href="/privacy" on:click|preventDefault={() => navigate('privacy', '/privacy')}>Read the privacy policy</a>
       </section>
     {:else if page === 'join'}
       <section class="controller-page" aria-labelledby="join-title">
@@ -266,10 +365,10 @@
           <div class="offline-banner" role="alert"><strong>Controller disconnected.</strong><span>Your role is held for this round.</span><button class="button secondary" on:click={retry}>Reconnect</button></div>
         {/if}
       </section>
-    {:else if page === 'host'}
-      <section class="host-page" aria-labelledby="host-title">
+    {:else if page === 'host' || page === 'demo'}
+      <section class="host-page" class:demo-page={page === 'demo'} aria-labelledby="host-title">
         <div class="host-heading">
-          <div><p class="eyebrow">Shared-screen arena</p><h1 id="host-title">The Night Dragon</h1></div>
+          <div><p class="eyebrow">{page === 'demo' ? 'Playable sample battle' : 'Shared-screen arena'}</p><h1 id="host-title">{page === 'demo' ? 'Try the sample battle' : 'The Night Dragon'}</h1></div>
           <div class="access-settings" aria-label="Display settings">
             <button aria-pressed={groundMarkers} on:click={() => { groundMarkers = !groundMarkers; saveSetting('ground-markers', groundMarkers); }}><span aria-hidden="true">◎</span> Ground markers</button>
             <button aria-pressed={highContrast} on:click={() => { highContrast = !highContrast; saveSetting('high-contrast', highContrast); }}><span aria-hidden="true">◐</span> High contrast</button>
@@ -282,7 +381,7 @@
         {:else if connection === 'offline' && !room}
           <div class="system-state error-state" role="alert"><span aria-hidden="true">!</span><h2>The room is offline</h2><p>{error || 'The room connection ended. A new room code will be created when you retry.'}</p><button class="button primary" on:click={retry}>Create a new room</button></div>
         {:else if room}
-          {#if room.phase === 'lobby'}
+          {#if room.phase === 'lobby' && page === 'host'}
             <div class="lobby-grid">
               <div class="join-board">
                 <p class="sign-label">Phones join with</p>
@@ -330,7 +429,7 @@
                     <span class="result-symbol" aria-hidden="true">{room.phase === 'won' ? '★' : '↻'}</span>
                     <h2 id="result-title">{room.phase === 'won' ? 'Dragon defeated!' : 'Play another round'}</h2>
                     <p id="result-copy">{room.announcement}</p>
-                    <button class="button primary" on:click={() => send({ type: 'restart' })}>Play another round</button>
+                    <button class="button primary" on:click={() => page === 'demo' ? resetDemo() : send({ type: 'restart' })}>Play another round</button>
                   </div>
                 {/if}
               </div>
@@ -339,9 +438,22 @@
                   <li class:disconnected={!player.connected}><span aria-hidden="true">{roleCopy[player.role].symbol}</span><strong>{player.name}</strong><small>{player.connected ? `${player.meter}% ready` : 'Disconnected'}</small></li>
                 {/each}
               </ul>
+              {#if page === 'demo'}
+                <section class="demo-controls" aria-labelledby="demo-controls-title">
+                  <div><p class="eyebrow">Sample phone controls</p><h2 id="demo-controls-title">Build charge, then share</h2></div>
+                  {#each room.players as player}
+                    <div class="demo-role {player.role}">
+                      <span class="demo-role-symbol" aria-hidden="true">{roleCopy[player.role].symbol}</span>
+                      <span><strong>{player.name} · {roleCopy[player.role].label}</strong><small>{player.meter}% charge</small></span>
+                      <button on:click={() => demoAction(player.role, 'build')} aria-label={`Build ${roleCopy[player.role].label} charge`}>Build +10</button>
+                      <button on:click={() => demoAction(player.role, 'share')} disabled={player.meter < 40}>{roleCopy[player.role].share}</button>
+                    </div>
+                  {/each}
+                </section>
+              {/if}
             </div>
           {/if}
-          {#if connection === 'offline'}
+          {#if connection === 'offline' && page === 'host'}
             <div class="offline-banner" role="alert"><strong>Host connection lost.</strong><span>This room has closed to protect its private state.</span><button class="button secondary" on:click={retry}>Create a new room</button></div>
           {/if}
         {/if}
@@ -352,6 +464,7 @@
         <p class="lede">A room is temporary. We do not create profiles or collect accessibility information.</p>
         <h2>What the server sees</h2><p>While a room is open, the server holds its four-character code, display names, connection IDs, roles, and current game state in memory. This is needed to synchronize the host and phone controllers. The room disappears when the host disconnects or the service restarts.</p>
         <h2>What is stored</h2><p>Your browser stores a random controller ID and your display preferences. Your name lasts only in the current browser tab. The server keeps one aggregate page-view number per day; it does not attach IP addresses, user agents, room codes, or player data to that number. To prevent overload, the server temporarily counts connection and page-view requests by network address in memory. Those short-lived counts are not written to the database.</p>
+        <h2>How the sample stays separate</h2><p>The demo uses sample names in an isolated memory-only workspace. Demo display changes use a separate browser namespace. Demo visits are not added to the page count.</p>
         <h2>What is never collected</h2><p>No accounts, chat, precise location, advertising IDs, or accessibility settings. There are no third-party analytics, fonts, scripts, or trackers.</p>
         <h2>Room-code safety</h2><p>Anyone with a live room code can join. Share it only with the people playing, and close the host screen when the game is over.</p>
       </article>
@@ -369,6 +482,6 @@
 
   <footer>
     <p>Built for cooperative, mixed-ability play. Dragon artwork was generated for this game.</p>
-    <nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-coop-boss-access">Source</a></nav>
+    <nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-coop-boss-access">Source</a><span>Build {buildId}</span></nav>
   </footer>
 </div>

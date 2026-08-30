@@ -73,7 +73,7 @@ enum Phase {
     Lost,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum Role {
     Ward,
@@ -103,6 +103,8 @@ struct Room {
     next_hit: f32,
     last_tick: Instant,
     announcement: String,
+    is_demo: bool,
+    created_at: Instant,
 }
 
 #[derive(Debug, Serialize)]
@@ -147,8 +149,16 @@ enum ClientMessage {
         name: String,
         client_id: String,
     },
+    Demo {
+        client_id: String,
+    },
     Start,
     Restart,
+    DemoReset,
+    DemoAction {
+        role: Role,
+        action: Action,
+    },
     Action {
         action: Action,
     },
@@ -485,6 +495,17 @@ async fn register(
             }
             Ok((client_id, code, false))
         }
+        ClientMessage::Demo { client_id } if valid_id(&client_id) => {
+            let mut rooms = state.rooms.write().await;
+            if rooms.len() >= state.limits.max_rooms {
+                return Err(
+                    "All sample rooms are busy. Close an unused demo or try again shortly.".into(),
+                );
+            }
+            let workspace_id = make_demo_id(&rooms);
+            rooms.insert(workspace_id.clone(), Room::demo());
+            Ok((client_id, workspace_id, true))
+        }
         _ => Err("Start by creating a room or joining with a valid code.".into()),
     }
 }
@@ -503,6 +524,10 @@ async fn process_message(
     match message {
         ClientMessage::Start if is_host => start_round(room),
         ClientMessage::Restart if is_host => start_round(room),
+        ClientMessage::DemoReset if is_host && room.is_demo => room.reset_demo(),
+        ClientMessage::DemoAction { role, action } if is_host && room.is_demo => {
+            apply_demo_action(room, role, action)
+        }
         ClientMessage::Action { action } if !is_host && room.phase == Phase::Playing => {
             let now = Instant::now();
             let Some(player) = room.players.iter_mut().find(|p| p.id == client_id) else {
@@ -550,6 +575,41 @@ async fn process_message(
         _ => return,
     }
     broadcast_room(room);
+}
+
+fn apply_demo_action(room: &mut Room, role: Role, action: Action) {
+    if room.phase != Phase::Playing {
+        return;
+    }
+    let Some(player) = room.players.iter_mut().find(|player| player.role == role) else {
+        return;
+    };
+    match action {
+        Action::Build => {
+            player.meter = (player.meter + 10.0).min(100.0);
+            room.announcement = format!(
+                "{} built {} charge",
+                player.name,
+                if role == Role::Ward { "ward" } else { "surge" }
+            );
+        }
+        Action::Share if player.meter >= 40.0 => {
+            player.meter -= 40.0;
+            match role {
+                Role::Ward => {
+                    room.shield = (room.shield + 28.0).min(100.0);
+                    room.announcement = format!("{} shared a team shield", player.name);
+                }
+                Role::Surge => {
+                    room.boost = (room.boost + 28.0).min(100.0);
+                    room.announcement = format!("{} boosted every team strike", player.name);
+                }
+            }
+        }
+        Action::Share => {
+            room.announcement = format!("{} needs 40 charge to share", player.name);
+        }
+    }
 }
 
 fn start_round(room: &mut Room) {
@@ -606,9 +666,12 @@ async fn game_clock(state: AppState) {
     loop {
         interval.tick().await;
         let mut rooms = state.rooms.write().await;
+        rooms.retain(|_, room| {
+            !room.is_demo || room.created_at.elapsed() < Duration::from_secs(86_400)
+        });
         for room in rooms
             .values_mut()
-            .filter(|room| room.phase == Phase::Playing)
+            .filter(|room| room.phase == Phase::Playing && !room.is_demo)
         {
             tick_room(room);
             broadcast_room(room);
@@ -670,7 +733,46 @@ impl Room {
             next_hit: 6.0,
             last_tick: Instant::now(),
             announcement: "Waiting for one WARD and one SURGE player".into(),
+            is_demo: false,
+            created_at: Instant::now(),
         }
+    }
+
+    fn demo() -> Self {
+        let mut room = Self::new("DEMO".into());
+        room.is_demo = true;
+        room.reset_demo();
+        room
+    }
+
+    fn reset_demo(&mut self) {
+        self.phase = Phase::Playing;
+        self.boss_hp = 68.0;
+        self.team_hp = 82.0;
+        self.shield = 20.0;
+        self.boost = 0.0;
+        self.remaining = 155.0;
+        self.next_hit = 4.5;
+        self.last_tick = Instant::now();
+        self.announcement = "Mina is building a shield before the next hit".into();
+        self.players = vec![
+            Player {
+                id: "demo-ward".into(),
+                name: "Mina".into(),
+                role: Role::Ward,
+                meter: 30.0,
+                connected: true,
+                last_action: None,
+            },
+            Player {
+                id: "demo-surge".into(),
+                name: "Ivo".into(),
+                role: Role::Surge,
+                meter: 40.0,
+                connected: true,
+                last_action: None,
+            },
+        ];
     }
 
     fn view(&self) -> RoomView {
@@ -750,6 +852,16 @@ fn make_code(rooms: &HashMap<String, Room>) -> String {
             .collect();
         if !rooms.contains_key(&code) {
             return code;
+        }
+    }
+}
+
+fn make_demo_id(rooms: &HashMap<String, Room>) -> String {
+    loop {
+        let value: u64 = rand::rng().random();
+        let id = format!("demo:{value:016x}");
+        if !rooms.contains_key(&id) {
+            return id;
         }
     }
 }
@@ -873,6 +985,20 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(views, 1);
+        let tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        )
+        .fetch_all(&db)
+        .await
+        .unwrap();
+        assert_eq!(tables, vec!["daily_page_views"]);
+        let columns: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM pragma_table_info('daily_page_views') ORDER BY cid",
+        )
+        .fetch_all(&db)
+        .await
+        .unwrap();
+        assert_eq!(columns, vec!["day", "views"]);
     }
 
     #[tokio::test]
@@ -980,5 +1106,98 @@ mod tests {
         .unwrap_err();
         assert!(error.contains("rooms are busy"));
         assert_eq!(state.rooms.read().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn demo_workspace_is_seeded_isolated_resettable_and_ephemeral() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        migrate(&db).await.unwrap();
+        let state = AppState {
+            rooms: Arc::new(RwLock::new(HashMap::new())),
+            db: db.clone(),
+            limits: Arc::new(CapacityLimits::production()),
+        };
+
+        let client_id = "demo-browser-client".to_string();
+        let (_, workspace_id, is_host) = register(
+            ClientMessage::Demo {
+                client_id: client_id.clone(),
+            },
+            &state,
+        )
+        .await
+        .unwrap();
+        assert!(workspace_id.starts_with("demo:"));
+        assert!(is_host);
+        {
+            let rooms = state.rooms.read().await;
+            let room = rooms.get(&workspace_id).unwrap();
+            assert!(room.is_demo);
+            assert_eq!(room.code, "DEMO");
+            assert_eq!(room.players.len(), 2);
+            assert_eq!(room.players[0].name, "Mina");
+            assert_eq!(room.players[1].role, Role::Surge);
+        }
+
+        process_message(
+            &state,
+            &workspace_id,
+            &client_id,
+            true,
+            ClientMessage::DemoAction {
+                role: Role::Ward,
+                action: Action::Build,
+            },
+        )
+        .await;
+        process_message(
+            &state,
+            &workspace_id,
+            &client_id,
+            true,
+            ClientMessage::DemoAction {
+                role: Role::Ward,
+                action: Action::Share,
+            },
+        )
+        .await;
+        assert_eq!(state.rooms.read().await[&workspace_id].shield, 48.0);
+
+        process_message(
+            &state,
+            &workspace_id,
+            &client_id,
+            true,
+            ClientMessage::DemoReset,
+        )
+        .await;
+        assert_eq!(state.rooms.read().await[&workspace_id].shield, 20.0);
+
+        let inaccessible = register(
+            ClientMessage::Join {
+                code: "DEMO".into(),
+                name: "Visitor".into(),
+                client_id: "normal-player-client".into(),
+            },
+            &state,
+        )
+        .await
+        .unwrap_err();
+        assert!(inaccessible.contains("Room not found"));
+        let page_views: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM daily_page_views")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(
+            page_views, 0,
+            "demo play must not enter the page-view store"
+        );
+
+        disconnect(&state, &workspace_id, &client_id, true).await;
+        assert!(state.rooms.read().await.is_empty());
     }
 }

@@ -8,7 +8,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined));
 }
 
-if (!sessionStorage.getItem('page-counted')) {
+const demoEntry = location.pathname.startsWith('/demo') || new URLSearchParams(location.search).get('demo') === '1';
+if (!demoEntry && !sessionStorage.getItem('page-counted')) {
   sessionStorage.setItem('page-counted', '1');
   fetch('/api/pageview', { method: 'POST', keepalive: true }).catch(() => undefined);
 }

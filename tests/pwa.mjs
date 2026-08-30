@@ -100,7 +100,7 @@ try {
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { level: 1 }).waitFor();
-  assert.match(await page.locator('h1').innerText(), /Two roles\.\s*One dragon\./i);
+  assert.match(await page.locator('h1').innerText(), /Beat a boss together with phone controls/i);
   console.log('PWA regression: shell precache, real same-URL asset update, stale cleanup, and cold offline reload passed.');
 } finally {
   await browser.close();

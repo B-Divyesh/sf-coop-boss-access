@@ -1,0 +1,79 @@
+[
+  {
+    "id": "demo-one-click",
+    "claim": "Try a playable sample battle in one click, then reset it or start a real game.",
+    "where": "landing first screen, demo banner, README",
+    "test": "npm run test:claims -- --grep @claim:demo-one-click",
+    "sandbox": "fresh browser context; click the landing action; assert seeded players, persistent banner, reset, exit, and ?demo=1"
+  },
+  {
+    "id": "role-effects",
+    "claim": "Ward shares a team shield and Surge boosts every team strike.",
+    "where": "landing, demo controls, README",
+    "test": "npm run test:claims -- --grep @claim:role-effects",
+    "sandbox": "fresh /demo room; build Ward to 40; share both roles; assert shield and boost state"
+  },
+  {
+    "id": "demo-isolation",
+    "claim": "Demo play uses isolated sample state and does not save to real game preferences or analytics.",
+    "where": "demo banner, privacy page, .factory/demo.md",
+    "test": "npm run test:claims -- --grep @claim:demo-isolation",
+    "sandbox": "preseed real browser keys; use and reset /demo; assert namespaced session state, unchanged real keys, no cookies/page-view write, and same-origin traffic"
+  },
+  {
+    "id": "offline-reload",
+    "claim": "The sample reloads and remains playable offline after the first visit.",
+    "where": "landing operational facts, README",
+    "test": "npm run test:claims -- --grep @claim:offline-reload",
+    "sandbox": "fresh 390px context; load /demo twice; wait for service-worker control; set offline; reload; build and share Ward"
+  },
+  {
+    "id": "temporary-rooms",
+    "claim": "A real room disappears when its host disconnects.",
+    "where": "landing operational facts, privacy page, README",
+    "test": "npm run test:claims -- --grep @claim:temporary-rooms",
+    "sandbox": "start at /demo; create and join a real room; close host; assert the old code rejects a new join"
+  },
+  {
+    "id": "free-no-account",
+    "claim": "The game is free and needs no account.",
+    "where": "landing first screen, terms, README",
+    "test": "npm run test:claims -- --grep @claim:free-no-account",
+    "sandbox": "fresh context; assert free/no-account copy, no password or payment flow, no cookies, and same-origin requests"
+  },
+  {
+    "id": "redundant-role-cues",
+    "claim": "Role and battle cues use words, shapes, position, markers, and accessible values instead of color alone.",
+    "where": "landing figure caption, README",
+    "test": "npm run test:claims -- --grep @claim:redundant-role-cues",
+    "sandbox": "fresh /demo room; assert Ward and Surge words/symbols, distinct positions, markers, and named progress values"
+  },
+  {
+    "id": "accessible-controls",
+    "claim": "The interface supports keyboard play, visible focus, 390px screens, reduced motion, and 44px touch targets.",
+    "where": "README accessibility section",
+    "test": "npm run test:claims -- --grep @claim:accessible-controls",
+    "sandbox": "fresh 390px keyboard context plus reduced-motion context; assert skip focus, no overflow, touch sizes, motion duration, and zero serious/critical axe findings"
+  },
+  {
+    "id": "local-preferences",
+    "claim": "Ground markers, high contrast, and reduced motion stay in the browser and are not sent to the room server.",
+    "where": "privacy page, README",
+    "test": "npm run test:claims -- --grep @claim:local-preferences",
+    "sandbox": "fresh real host; change all display settings; assert localStorage values, same-origin requests, and no setting names in WebSocket frames"
+  },
+  {
+    "id": "room-rules",
+    "claim": "Real rooms support 2–8 controllers with balanced Ward and Surge roles and a three-minute round.",
+    "where": "host lobby, README",
+    "test": "npm run test:claims -- --grep @claim:room-rules",
+    "sandbox": "start at /demo; create a real room; join eight controllers; reject the ninth; assert balanced roles and a 180-second start"
+  },
+  {
+    "id": "anonymous-page-count",
+    "claim": "The server stores only an anonymous daily page count, and demo visits are not counted.",
+    "where": "privacy page, README",
+    "test": "npm run test:claims -- --grep @claim:anonymous-page-count",
+    "sandbox": "fresh /demo request log plus isolated SQLite backend integration test"
+  }
+]

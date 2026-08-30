@@ -1,5 +1,7 @@
 FROM node:22-bookworm-slim AS web
 WORKDIR /build
+ARG BUILD_SHA=dev
+ENV VITE_BUILD_SHA=$BUILD_SHA
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html tsconfig.json vite.config.ts ./

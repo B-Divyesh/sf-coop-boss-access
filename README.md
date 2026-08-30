@@ -1,17 +1,23 @@
 # Co-op Boss Access
 
-Co-op Boss Access is a free, accessible local-room boss game for friends sharing one big screen and using their phones as two-button controllers. One role builds and shares shields; the other builds and shares damage boosts. Shape, text, position, pattern, and optional ground markers make the action readable without relying on depth perception, color, or motion alone.
+Co-op Boss Access is a free local-room boss game for friends sharing one screen. Phones become two-button controllers without accounts. Ward shares shields, while Surge boosts team strikes. Words, shapes, position, markers, and accessible values reinforce every role cue.
 
 Live product: <https://coop-boss-access.sociobot.in>
 
 ## Play
+
+Try the isolated sample first at <https://coop-boss-access.sociobot.in/demo>. It opens with Mina and Ivo in a live battle. **Reset demo** restores the sample, and **Start for real** discards it.
+
+To play with friends:
 
 1. Open the site on a laptop, television browser, or projected screen and choose **Host a game**.
 2. On at least two phones, scan the QR code or visit `/join` and enter the room code.
 3. Once both WARD and SURGE roles are present, start the three-minute round.
 4. Each player builds 40 charge, then shares their team effect. Ward shields the next hit; Surge speeds every automatic team strike.
 
-Rooms support 2–8 controllers. Room codes, display names, roles, and game state live only in server memory and vanish when the host disconnects. Browser-only display preferences are never sent to the server. See [`/privacy`](https://coop-boss-access.sociobot.in/privacy) for the full policy.
+Rooms support 2–8 controllers and three-minute rounds. Room codes, display names, roles, and game state live only in server memory. The room vanishes when its host disconnects. Browser display preferences are not sent to the server. See [`/privacy`](https://coop-boss-access.sociobot.in/privacy) for the full policy.
+
+The installed service-worker shell reloads the sample offline after its first visit. Offline sample actions run only in browser memory.
 
 ## Run locally
 
@@ -32,13 +38,14 @@ npm run check  # Svelte diagnostics and strict Clippy
 npm run build  # reproducible frontend output in dist/
 cargo run      # serve dist/ and the backend on PORT (default 8080)
 npm run test:pwa  # 390 px cold-offline reload and service-worker update regression
+npm run test:claims  # every visitor-facing claim from a clean demo sandbox
 npm run test:join-reliability  # 20 independent host/controller joins (server required)
 npm run test:browser-joins  # 20 host/phone joins in isolated browser contexts
 npm run test:rate-limit  # rejection load for page views and WebSocket registration (server required)
 npm run test:browser-quality  # mobile, keyboard, reduced-motion, privacy, network, and headers
 ```
 
-The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous aggregate page count per UTC day. The default database is `data/coop.db`.
+The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous page count per UTC day. Demo visits are not counted. The default database is `data/coop.db`.
 
 ## Container deployment
 
@@ -65,10 +72,10 @@ The server admits at most 256 rooms and 2,048 live sockets per process. WebSocke
 ## Accessibility and controls
 
 - All standard controls work with Tab, Shift+Tab, Enter, and Space and have visible focus states.
-- Phone actions are native buttons with large touch targets.
+- Phone actions are native buttons with touch targets at least 44 CSS pixels tall.
 - The host can enable ground markers, high contrast, and reduced motion at any time. OS-level reduced motion is also honored.
 - Role identity and battle state never depend on color alone.
-- The UI supports narrow 390 px screens and 200% text zoom without a separate app.
+- The UI fits narrow 390 px screens.
 
 The original night-market scene was generated specifically for this product. Its source, prompt, and review notes are in `assets/src/`; the complete visual rationale and provenance are in [`.factory/design.md`](.factory/design.md).
 

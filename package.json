@@ -16,6 +16,7 @@
     "test:browser-quality": "node tests/browser-quality.mjs",
     "test:a11y": "node tests/a11y.mjs",
     "test:pwa": "node tests/pwa.mjs",
+    "test:claims": "npm run build --silent && node tests/claims.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.json && cargo clippy --all-targets -- -D warnings"
   },
   "dependencies": {
