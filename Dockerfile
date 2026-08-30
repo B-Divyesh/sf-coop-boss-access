@@ -8,7 +8,7 @@ COPY scripts ./scripts
 COPY src ./src
 RUN npm run build
 
-FROM rust:1.89-bookworm AS server
+FROM rust:1-slim AS server
 WORKDIR /build
 ARG BUILD_SHA=dev
 ENV BUILD_SHA=$BUILD_SHA
