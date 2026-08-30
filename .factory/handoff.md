@@ -1,4 +1,27 @@
-# Co-op Boss Access — repair handoff
+# Co-op Boss Access — verification 6 handoff
+
+## Release status: FAIL
+
+Candidate `eb0db72100eff40d01274721e31041e27bf8486e` at
+<https://coop-boss-access.sociobot.in> **must not be accepted**. See
+[`verification-6.md`](verification-6.md) for complete independent evidence.
+
+The live binary and static assets match the candidate, but the Azure Container
+App is configured with `maxReplicas=3` and currently has three running
+replicas. Process-local WebSocket room state is therefore unreliable; the
+20-attempt live join-reliability regression timed out. Production rate-limit
+verification also fails to enforce the documented 20-request allowance
+reliably, and the desktop cold first screen places the mandatory sample action
+below a 900px viewport. These are release blockers.
+
+Required next steps: restore exactly one replica (or implement shared room
+state), make the live forwarded-IP rate limit deterministic with 429 plus
+`Retry-After`, put the sample CTA in the desktop initial viewport, and add a
+real HTTP 404 route. Re-run independent verification after deployment.
+
+---
+
+# Prior repair handoff (superseded by verification 6)
 
 Date: 2026-08-30  
 Work order: `coop-boss-access-repair-5`  
