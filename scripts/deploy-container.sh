@@ -28,30 +28,29 @@ az containerapp update \
   --max-replicas 1 \
   --output none
 
-mapfile -t deployment_state < <(
-  az containerapp show \
-    --resource-group "$resource_group" \
-    --name "$container_app" \
-    --query '[properties.template.containers[0].image, properties.template.scale.minReplicas, properties.template.scale.maxReplicas]' \
-    --output tsv
-)
-deployed_image="${deployment_state[0]:-}"
-min_replicas="${deployment_state[1]:-}"
-max_replicas="${deployment_state[2]:-}"
-
-if [[ "$deployed_image" != "$image" || "$min_replicas" != "1" || "$max_replicas" != "1" ]]; then
-  echo "Deployment invariant failed: image=$deployed_image replicas=$min_replicas..$max_replicas" >&2
-  exit 1
-fi
-
 for attempt in {1..60}; do
-  live_build="$(curl --fail --silent --show-error https://coop-boss-access.sociobot.in/health | sed -n 's/.*"build":"\([^"]*\)".*/\1/p' || true)"
-  if [[ "$live_build" == "$release_sha" ]]; then
-    echo "Deployed $release_sha as $image with exactly one replica."
-    exit 0
+  if scripts/verify-container-release.sh "$release_sha"; then
+    ready=true
+    break
   fi
   sleep 2
 done
 
-echo "Deployment did not report build $release_sha within 120 seconds." >&2
-exit 1
+if [[ "${ready:-false}" != "true" ]]; then
+  echo "Deployment did not reach the required image, identity, and one-replica state within 120 seconds." >&2
+  exit 1
+fi
+
+# Observe the invariant beyond the first successful control-plane read. This
+# catches a release wrapper that rewrites the scale setting immediately after
+# the image update.
+for observation in 1 2 3; do
+  scripts/verify-container-release.sh "$release_sha"
+  if [[ "$observation" != "3" ]]; then sleep 10; fi
+done
+
+APP_URL="https://coop-boss-access.sociobot.in" \
+  BROWSER_JOIN_ATTEMPTS="${BROWSER_JOIN_ATTEMPTS:-20}" \
+  npm run test:browser-joins
+
+echo "Deployed $release_sha as $image with one stable replica; 20 isolated browser joins passed."

@@ -202,14 +202,14 @@
           </ul>
         </div>
         <figure class="hero-art">
-          <div class="neon-label" aria-hidden="true">TONIGHT: TEAMWORK</div>
+          <div class="neon-label" aria-hidden="true">WARD + SURGE</div>
           <img src="/art/night-market-dragon.webp" width="960" height="640" alt="A paper-cut night dragon behind two controller plinths marked with a hexagon and a four-point star" fetchpriority="high" decoding="async" />
           <figcaption>Every cue uses a shape, word, and position—not color alone.</figcaption>
         </figure>
       </section>
       <section class="how" aria-labelledby="how-title">
-        <p class="eyebrow">The stall rules</p>
-        <h2 id="how-title">Ready in under 30 seconds</h2>
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title">Start a game in three steps</h2>
         <ol>
           <li><strong>Host</strong><span>Put the arena on one shared screen.</span></li>
           <li><strong>Join</strong><span>Friends scan or enter one short code.</span></li>
@@ -221,7 +221,7 @@
         {#if !room}
           <div class="controller-intro">
             <p class="eyebrow">Phone controller</p>
-            <h1 id="join-title">Join the stall</h1>
+            <h1 id="join-title">Join the room</h1>
             <p>The host screen shows the room code. Your name is visible only to this room.</p>
             <form class="join-form" on:submit|preventDefault={submitJoin} novalidate>
               <label for="room-code">Four-character room code</label>
@@ -278,9 +278,9 @@
         </div>
 
         {#if connection === 'connecting' && !room}
-          <div class="system-state" role="status"><span class="spinner" aria-hidden="true"></span><h2>Opening the stall…</h2><p>Creating a private room on this server.</p></div>
+          <div class="system-state" role="status"><span class="spinner" aria-hidden="true"></span><h2>Creating your room…</h2><p>Setting up a private room on this server.</p></div>
         {:else if connection === 'offline' && !room}
-          <div class="system-state error-state" role="alert"><span aria-hidden="true">!</span><h2>The stall is offline</h2><p>{error || 'The room connection ended. A new room code will be created when you retry.'}</p><button class="button primary" on:click={retry}>Create a new room</button></div>
+          <div class="system-state error-state" role="alert"><span aria-hidden="true">!</span><h2>The room is offline</h2><p>{error || 'The room connection ended. A new room code will be created when you retry.'}</p><button class="button primary" on:click={retry}>Create a new room</button></div>
         {:else if room}
           {#if room.phase === 'lobby'}
             <div class="lobby-grid">
@@ -319,7 +319,7 @@
               </div>
               <div class="announcement" role="status" aria-live="polite"><span aria-hidden="true">◆</span>{room.announcement}<span aria-hidden="true">◆</span></div>
               <div class="boss-stage" class:incoming={room.phase === 'playing' && room.incoming_ms < 2500}>
-                <img src="/art/night-market-dragon.webp" width="960" height="640" alt="The paper-cut night dragon in its market stall arena" decoding="async" />
+                <img src="/art/night-market-dragon.webp" width="960" height="640" alt="The paper-cut night dragon above the Ward and Surge plinths" decoding="async" />
                 {#if room.phase === 'playing' && room.incoming_ms < 2500}<div class="hit-warning"><strong>INCOMING HIT</strong><span>{Math.ceil(room.incoming_ms / 1000)}</span></div>{/if}
                 <div class="power ward-power"><span>⬡ WARD SHIELD</span><strong>{room.shield}%</strong><progress max="100" value={room.shield} aria-label={`Shared ward shield: ${room.shield}%`}></progress></div>
                 <div class="power surge-power"><span>✦ SURGE BOOST</span><strong>{room.boost}%</strong><progress max="100" value={room.boost} aria-label={`Shared surge boost: ${room.boost}%`}></progress></div>
@@ -328,7 +328,7 @@
                 {#if room.phase === 'won' || room.phase === 'lost'}
                   <div class="round-result" role="dialog" aria-labelledby="result-title" aria-describedby="result-copy">
                     <span class="result-symbol" aria-hidden="true">{room.phase === 'won' ? '★' : '↻'}</span>
-                    <h2 id="result-title">{room.phase === 'won' ? 'Dragon defeated!' : 'Try the stall again'}</h2>
+                    <h2 id="result-title">{room.phase === 'won' ? 'Dragon defeated!' : 'Play another round'}</h2>
                     <p id="result-copy">{room.announcement}</p>
                     <button class="button primary" on:click={() => send({ type: 'restart' })}>Play another round</button>
                   </div>
