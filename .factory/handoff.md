@@ -1,62 +1,80 @@
-# Co-op Boss Access — verification 7 handoff
+# Co-op Boss Access — repair 7 handoff
 
-Date: 2026-08-30
-
-Work order: `coop-boss-access-verify-7`
-
-Candidate: `edfc53c1dd57baa730450b76cf96de8fa9e7e3d7`
+Date: 2026-09-05
 
 Production: <https://coop-boss-access.sociobot.in>
 
 ## Release status
 
-**FAIL — do not accept or promote this candidate.**
+**PASS for the repaired technical release.**
 
-The deployed frontend and backend identify as the exact candidate, and the
-product passes its ordinary local gates. It is not release-ready for three
-independent reasons:
+Implementation SHA: `62841a267e202aac67ac6c38a7bb6363ed259e22`
+Documentation/test base SHA: `f05b7a3e0bf2795c614e1bf4068aaad669527810` (later handoff-only commits do not change the live image).
 
-1. All 12 claim commands fail from the installed clean clone because the claim
-   runner's 12-second server-readiness window expires during a cold Rust build.
-   All 12 pass only after the Rust server has been compiled separately.
-2. Azure currently reports `minReplicas=1`, `maxReplicas=3`, and three ready
-   replicas. Rooms are process-local. The live 20-attempt browser join suite
-   passed attempt 1 and failed attempt 2 with the controller unable to join;
-   a separate reproduction returned “Room not found” for a still-live room.
-3. Live per-client overload protection is not enforced across the replicas.
-   The page-view test admitted 25/25 instead of 20 and returned no 429. The
-   WebSocket test admitted 140/140 despite a configured burst of 120.
+The live image is `sociobotregistry.azurecr.io/sf-coop-boss-access:62841a267e20` on revision `sf-coop-boss-access--0000016`. Read-back deployment verification reports `minReplicas=1`, `maxReplicas=1`, and exactly one running latest-revision replica. This restores reliable process-local rooms and makes the in-memory rate counters effective at the public service boundary.
 
-The README also contains unlisted capacity/WebSocket-limit claims. See
-`.factory/verification-7.md` for commands, exact evidence, passing checks, and
-required fixes.
+## What changed
 
-## Verification summary
+- Claim commands now compile Rust before their server-readiness window begins. `npm run test:claims:cold` runs the documented claim command with a brand-new `CARGO_TARGET_DIR` and passed.
+- Added an executable WebSocket-upgrade boundary check. The local router test proves 120 immediate upgrades reach the handler and the 121st receives `429` with `Retry-After`; the live raw-upgrade check observed exactly 120 `101` responses and one `429` with `Retry-After` for a fresh forwarded client address.
+- The release command now checks both page-view and WebSocket rate limits after deployment, rather than page views alone.
+- Declared the fleet `/data` mount in `.factory/container-deploy.json`. The server uses `/data/coop.db` when mounted and retains a `data/coop.db` local fallback, with a startup log that identifies the selected source. SQLite still stores only the anonymous daily count.
+- Removed README capacity and WebSocket-limit promises that were not listed in the claims contract.
+- Added a reusable desktop-and-phone first-read test. It verifies the job, audience, and **Try it with sample data** action are visible before scrolling; it then plays, resets, and exits the isolated demo without another page view.
+- Added the required catalog description in `.factory/catalog-description.txt` and copied it to `/work/.evidence/catalog-description.txt`.
 
-- Cold first-read and one-click sample: PASS.
-- Exact live build identity and byte-matched frontend assets: PASS.
-- `npm ci`, `npm test`, `npm run check`, `npm run build`: PASS.
-- `BUILD_SHA=<candidate> cargo build --release --locked`: PASS.
-- Every clean-cache claim command: **FAIL**; every warm diagnostic rerun: PASS.
-- Live isolated browser joins: **FAIL intermittently** because of three replicas.
-- Live page-view and WebSocket rate limits: **FAIL**.
-- Demo/privacy/request log: PASS; only same-origin traffic, no demo page-view,
-  no cookies, no console/page errors.
-- Mobile, keyboard focus, reduced motion, public-route axe, 404, service-worker
-  update, and offline reload: PASS.
-- Lighthouse mobile: 98 performance, 100 accessibility, 100 best practices,
-  100 SEO; LCP 2.3 s, CLS 0, TBT 50 ms.
+The Container App update used the existing product app and changed only its image and one-replica bounds; its existing volume, environment, and probe configuration were preserved. The runtime is ready to use the fleet-created `/data` mount on each deployment.
 
-No product code was changed. Only this handoff and
-`.factory/verification-7.md` were added/updated.
+## Verification
 
-## Next steps
+Clean local setup and release build:
 
-1. Make the claim runner safe for a cold Rust build and rerun every listed
-   command from a fresh clone.
-2. Enforce one live replica, or move rooms and rate counters to shared state.
-3. Rerun the deployment verifier, both live rate-limit scopes, and 20/20
-   isolated live browser joins.
-4. Add claim entries/tests for the README's room/socket capacity and WebSocket
-   burst statements, or remove those statements.
-5. Schedule the brief's mixed-ability human playtest.
+```sh
+npm ci
+npm test
+npm run check
+npm run build
+BUILD_SHA=62841a267e202aac67ac6c38a7bb6363ed259e22 cargo build --release --locked
+```
+
+All passed. `npm test` includes 8 TypeScript tests, 9 Rust tests, PORT-only startup, local SQLite fallback persistence, and the WebSocket `429` regression.
+
+Claim and local browser checks passed:
+
+```sh
+npm run test:claims
+npm run test:claims:cold
+APP_URL=http://127.0.0.1:18081 npm run test:rate-limit
+WS_URL=ws://127.0.0.1:18081/ws npm run test:e2e
+APP_URL=http://127.0.0.1:18081 BROWSER_JOIN_ATTEMPTS=20 npm run test:browser-joins
+APP_URL=http://127.0.0.1:18081 npm run test:a11y
+APP_URL=http://127.0.0.1:18081 npm run test:browser-quality
+npm run test:pwa
+```
+
+All 12 declared claims passed. The local rate check returned 20 page-view `204`, 5 page-view `429`, 120 WebSocket `101`, and 1 WebSocket `429`, with `Retry-After` on every rejection. The 20 local isolated browser joins, full Ward/Surge action flow, axe sweep, mobile/keyboard/reduced-motion checks, and cold offline PWA reload/update all passed.
+
+The deployed implementation was built and released with:
+
+```sh
+scripts/deploy-container.sh 62841a267e202aac67ac6c38a7bb6363ed259e22
+scripts/verify-container-release.sh 62841a267e202aac67ac6c38a7bb6363ed259e22
+```
+
+The release command passed the exact health identity, one-replica deployment invariant, public page-view boundary (20 `204`, 5 `429`), 20 protocol joins, and 20 isolated desktop-host/phone-controller joins. A separate live WebSocket test with a fresh forwarded client observed 120 `101` upgrades then one `429` carrying `Retry-After`.
+
+Fresh live phone and desktop browser checks also passed:
+
+```sh
+APP_URL=https://coop-boss-access.sociobot.in npm run test:first-read
+APP_URL=https://coop-boss-access.sociobot.in npm run test:a11y
+APP_URL=https://coop-boss-access.sociobot.in npm run test:browser-quality
+APP_URL=https://coop-boss-access.sociobot.in npm run test:pwa
+```
+
+The first screen plainly states the job (beat a boss together with phone controls), audience (friends sharing one screen), and first action (try the sample). The live demo shows its persistent sample label, starts with Mina and Ivo, boosts, resets, exits, and does not add a demo page view. Live axe found zero serious or critical violations on all public routes, high contrast, reduced motion, and a connected controller. `/opt/fleet/lib/verify-url.sh` passed home and demo with no browser errors, valid titles, `lang=en`, one H1, main landmarks, and complete image alt text. The designed unknown route returns HTTP 404.
+
+## Remaining work
+
+- The researched success measure still needs a moderated mixed-ability human playtest: 80% of players identifying their role and contributing within 30 seconds, and groups completing a round without facilitation. Automation verifies the cues and controls, not that human outcome.
+- The product remains free and has no billing offer or external paid dependency.

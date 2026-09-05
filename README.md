@@ -44,6 +44,7 @@ npm run test:join-reliability  # 20 independent host/controller joins (server re
 npm run test:browser-joins  # 20 host/phone joins in isolated browser contexts
 npm run test:rate-limit  # rejection load for page views and WebSocket registration (server required)
 npm run test:browser-quality  # mobile, keyboard, reduced-motion, privacy, network, and headers
+npm run test:first-read  # desktop and phone first-screen demo flow (server required)
 ```
 
 The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous page count per UTC day. Demo visits are not counted. The default database is `/data/coop.db` when that durable mount exists, otherwise `data/coop.db` for local runs.

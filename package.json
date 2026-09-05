@@ -14,6 +14,7 @@
     "verify:deployment": "scripts/verify-container-release.sh",
     "test:rate-limit": "node tests/rate-limit.mjs",
     "test:browser-quality": "node tests/browser-quality.mjs",
+    "test:first-read": "node tests/first-read.mjs",
     "test:a11y": "node tests/a11y.mjs",
     "test:pwa": "node tests/pwa.mjs",
     "test:claims": "npm run build --silent && node tests/claims.mjs",
