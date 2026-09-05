@@ -17,7 +17,7 @@ assert.match(deployment, /--max-replicas 1/);
 assert.match(deployment, /verify-container-release\.sh/);
 assert.match(deployment, /test:browser-joins/);
 assert.match(deployment, /test:rate-limit/);
-assert.match(deployment, /RATE_LIMIT_SCOPE=pageview/);
+assert.match(deployment, /RATE_LIMIT_SCOPE=all/);
 assert.match(deployment, /test:join-reliability/);
 assert.ok(deployment.indexOf('test:rate-limit') < deployment.indexOf('test:browser-joins'), 'live rate limits must be checked on the fresh replica before browser traffic');
 assert.match(verification, /containerapp replica list/);

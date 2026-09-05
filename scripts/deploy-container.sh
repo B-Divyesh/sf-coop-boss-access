@@ -50,7 +50,7 @@ for observation in 1 2 3; do
 done
 
 APP_URL="https://coop-boss-access.sociobot.in" \
-  RATE_LIMIT_SCOPE=pageview \
+  RATE_LIMIT_SCOPE=all \
   npm run test:rate-limit
 
 WS_URL="wss://coop-boss-access.sociobot.in/ws" \
