@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -209,16 +209,11 @@ async fn main() {
         .with_env_filter(log_filter)
         .init();
 
-    let database_url = std::env::var("DATABASE_URL").ok();
-    let database_source = if database_url.is_some() {
-        "supplied"
-    } else {
-        "default"
+    let supplied_database_url = std::env::var("DATABASE_URL").ok();
+    let (database_url, database_source) = match supplied_database_url {
+        Some(url) => (url, "supplied"),
+        None => default_database_url(),
     };
-    let database_url = database_url.unwrap_or_else(|| "sqlite://data/coop.db?mode=rwc".into());
-    if database_url.starts_with("sqlite://data/") {
-        std::fs::create_dir_all("data").expect("create data directory");
-    }
     let db = SqlitePoolOptions::new()
         .max_connections(4)
         .connect(&database_url)
@@ -253,6 +248,28 @@ async fn main() {
     .with_graceful_shutdown(shutdown_signal())
     .await
     .expect("serve application");
+}
+
+fn default_database_url() -> (String, &'static str) {
+    // Fleet mounts durable product storage at /data. A local binary still runs
+    // without extra setup by falling back beside the executable/work directory.
+    let database_path = if Path::new("/data").is_dir() {
+        PathBuf::from("/data/coop.db")
+    } else {
+        PathBuf::from("data/coop.db")
+    };
+    if let Some(parent) = database_path.parent() {
+        std::fs::create_dir_all(parent).expect("create SQLite data directory");
+    }
+    let source = if database_path.starts_with("/data") {
+        "durable-default"
+    } else {
+        "local-default"
+    };
+    (
+        format!("sqlite://{}?mode=rwc", database_path.display()),
+        source,
+    )
 }
 
 fn app(state: AppState) -> Router {
@@ -1140,6 +1157,66 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(unsupported.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[tokio::test]
+    async fn rejects_websocket_upgrade_bursts_with_retry_after() {
+        let db = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        migrate(&db).await.unwrap();
+        let service = app(AppState {
+            rooms: Arc::new(RwLock::new(HashMap::new())),
+            db,
+            limits: Arc::new(CapacityLimits::production()),
+        });
+
+        let mut statuses = Vec::new();
+        let mut retry_after = None;
+        for _ in 0..=WS_BURST_PER_IP {
+            let response = service
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("GET")
+                        .uri("/ws")
+                        .header("connection", "upgrade")
+                        .header("upgrade", "websocket")
+                        .header("sec-websocket-version", "13")
+                        .header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
+                        .header("x-forwarded-for", "198.51.100.73, 10.0.0.9")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            if response.status() == StatusCode::TOO_MANY_REQUESTS {
+                retry_after = response
+                    .headers()
+                    .get(header::RETRY_AFTER)
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_owned);
+            }
+            statuses.push(response.status());
+        }
+
+        assert_eq!(
+            statuses[..WS_BURST_PER_IP as usize],
+            // Router-only tests do not carry Hyper's upgrade extension, so the
+            // handler returns its normal handshake rejection after the limiter
+            // admits each request. The next request must still be rate-limited.
+            vec![StatusCode::UPGRADE_REQUIRED; WS_BURST_PER_IP as usize]
+        );
+        assert_eq!(
+            statuses[WS_BURST_PER_IP as usize],
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert!(
+            retry_after.is_some(),
+            "WebSocket upgrade 429 responses must include Retry-After"
+        );
     }
 
     #[test]

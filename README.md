@@ -39,17 +39,18 @@ npm run build  # reproducible frontend output in dist/
 cargo run      # serve dist/ and the backend on PORT (default 8080)
 npm run test:pwa  # 390 px cold-offline reload and service-worker update regression
 npm run test:claims  # every visitor-facing claim from a clean demo sandbox
+npm run test:claims:cold  # proves a claim command works with an empty Rust build cache
 npm run test:join-reliability  # 20 independent host/controller joins (server required)
 npm run test:browser-joins  # 20 host/phone joins in isolated browser contexts
 npm run test:rate-limit  # rejection load for page views and WebSocket registration (server required)
 npm run test:browser-quality  # mobile, keyboard, reduced-motion, privacy, network, and headers
 ```
 
-The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous page count per UTC day. Demo visits are not counted. The default database is `data/coop.db`.
+The server reads `PORT`, `DATABASE_URL`, `DIST_DIR`, and `RUST_LOG`. SQLite stores only an anonymous page count per UTC day. Demo visits are not counted. The default database is `/data/coop.db` when that durable mount exists, otherwise `data/coop.db` for local runs.
 
 ## Container deployment
 
-The production image builds the Svelte client and release Rust binary, runs as a non-root distroless user, serves both from port 8080, and writes SQLite under `/app/data`.
+The production image builds the Svelte client and release Rust binary, runs as a non-root distroless user, serves both from port 8080, and writes SQLite under the durable `/data` mount.
 
 ```sh
 docker build -t coop-boss-access .
@@ -57,7 +58,7 @@ docker run --rm -p 8080:8080 coop-boss-access
 curl http://localhost:8080/health
 ```
 
-Mount `/app/data` only if the anonymous daily page count should survive restarts. Game rooms are always ephemeral. The deployed Container App is deliberately capped at one replica (`minReplicas=1`, `maxReplicas=1`): room state is live only in the host process, so scaling this v1 service horizontally would route controllers away from their host. Move room state to a shared realtime store before increasing that limit.
+The factory mounts `/data` for the anonymous daily page count. Game rooms are always ephemeral. The deployed Container App is deliberately capped at one replica (`minReplicas=1`, `maxReplicas=1`): room state is live only in the host process, so scaling this v1 service horizontally would route controllers away from their host. Move room state to a shared realtime store before increasing that limit.
 
 Production releases use the checked deployment command. It builds with the full Git SHA, applies the one-replica invariant, and checks the live control plane. It then observes the invariant three times, checks the exact page-view limit, runs 20 protocol joins, and runs 20 host-and-phone joins in separate browser contexts:
 
@@ -67,7 +68,7 @@ scripts/deploy-container.sh "$(git rev-parse HEAD)"
 
 The work-order deployer reads [`.factory/container-deploy.json`](.factory/container-deploy.json). A release fails unless Azure reports `minReplicas=1`, `maxReplicas=1`, exactly one running latest-revision replica, and the exact SHA from public `/health`.
 
-The server admits at most 256 rooms and 2,048 live sockets per process. Page-view overload protection admits a 20-request burst per client, then returns 429 with `Retry-After`. The limiter uses the first client address supplied by the trusted production ingress. WebSocket registrations also have a short per-client burst limit. Rate-limit counters remain in memory and are never added to analytics.
+Page-view overload protection admits a 20-request burst per client, then returns 429 with `Retry-After`. The limiter uses the first client address supplied by the trusted production ingress. Rate-limit counters remain in memory and are never added to analytics.
 
 ## Accessibility and controls
 

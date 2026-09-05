@@ -377,18 +377,28 @@ const port = await freePort();
 const origin = `http://127.0.0.1:${port}`;
 const websocketOrigin = `ws://127.0.0.1:${port}`;
 const databasePath = path.join(temporaryDirectory, 'claims.db');
-const server = spawn('cargo', ['run', '--quiet'], {
-  cwd: process.cwd(),
-  env: { ...process.env, PORT: String(port), DATABASE_URL: `sqlite://${databasePath}?mode=rwc` },
-  stdio: ['ignore', 'pipe', 'pipe']
-});
+const serverEnvironment = {
+  ...process.env,
+  PORT: String(port),
+  DATABASE_URL: `sqlite://${databasePath}?mode=rwc`
+};
+let server;
 let serverOutput = '';
-server.stdout.on('data', (chunk) => { serverOutput += chunk; });
-server.stderr.on('data', (chunk) => { serverOutput += chunk; });
 
 const factoryChrome = '/opt/pw-browsers/chromium-1208/chrome-linux64/chrome';
 let browser;
 try {
+  // The documented command must work with an empty Cargo target directory.
+  // Build before the server readiness window so compiling Rust cannot masquerade
+  // as a failed visitor claim.
+  await execFileAsync('cargo', ['build', '--quiet'], { cwd: process.cwd(), env: serverEnvironment });
+  server = spawn('cargo', ['run', '--quiet'], {
+    cwd: process.cwd(),
+    env: serverEnvironment,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  server.stdout.on('data', (chunk) => { serverOutput += chunk; });
+  server.stderr.on('data', (chunk) => { serverOutput += chunk; });
   await waitForServer(origin);
   browser = await chromium.launch(existsSync(factoryChrome) ? { executablePath: factoryChrome } : {});
   for (const test of selected) {
@@ -399,7 +409,9 @@ try {
   throw new Error(`${error instanceof Error ? error.stack : error}\nServer output:\n${serverOutput}`);
 } finally {
   await browser?.close();
-  server.kill('SIGTERM');
-  await new Promise((resolve) => server.once('exit', resolve));
+  if (server) {
+    server.kill('SIGTERM');
+    await new Promise((resolve) => server.once('exit', resolve));
+  }
   await rm(temporaryDirectory, { recursive: true, force: true });
 }

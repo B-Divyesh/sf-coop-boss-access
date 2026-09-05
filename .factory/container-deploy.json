@@ -1,4 +1,5 @@
 {
+  "data_dir": "/data",
   "minReplicas": 1,
   "maxReplicas": 1,
   "reason": "Rooms and WebSocket broadcasts are process-local, so every host and controller must reach the same process."

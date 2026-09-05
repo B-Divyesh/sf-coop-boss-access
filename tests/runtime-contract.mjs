@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -48,9 +48,10 @@ try {
   const response = await fetch(`http://127.0.0.1:${port}/health`);
   assert.equal(response.status, 200, 'PORT-only process must become healthy');
   assert.match(output, /runtime configuration ready; coop boss server ready/);
-  assert.match(output, /"database_source":"default"/);
+  assert.match(output, /"database_source":"local-default"/);
   assert.match(output, /"port_source":"supplied"/);
-  console.log('Runtime contract: PORT-only startup is healthy and logs default/supplied configuration sources.');
+  await access(path.join(temporaryDirectory, 'data', 'coop.db'));
+  console.log('Runtime contract: PORT-only startup is healthy, persists locally without a mount, and logs configuration sources.');
 } finally {
   process.kill('SIGTERM');
   await new Promise((resolve) => process.once('exit', resolve));

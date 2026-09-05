@@ -22,9 +22,13 @@ assert.match(deployment, /test:join-reliability/);
 assert.ok(deployment.indexOf('test:rate-limit') < deployment.indexOf('test:browser-joins'), 'live rate limits must be checked on the fresh replica before browser traffic');
 assert.match(verification, /containerapp replica list/);
 assert.deepEqual(
-  { minReplicas: factoryDeployment.minReplicas, maxReplicas: factoryDeployment.maxReplicas },
-  { minReplicas: 1, maxReplicas: 1 },
-  'the work-order deployment contract must keep process-local rooms on one replica'
+  {
+    dataDir: factoryDeployment.data_dir,
+    minReplicas: factoryDeployment.minReplicas,
+    maxReplicas: factoryDeployment.maxReplicas
+  },
+  { dataDir: '/data', minReplicas: 1, maxReplicas: 1 },
+  'the durable deployment contract must keep process-local rooms on one replica'
 );
 assert.equal(packageJson.devDependencies.playwright, '1.58.2');
 assert.ok(claims.length > 0, 'the visitor claims contract must not be empty');
