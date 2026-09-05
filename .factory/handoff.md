@@ -74,6 +74,19 @@ APP_URL=https://coop-boss-access.sociobot.in npm run test:pwa
 
 The first screen plainly states the job (beat a boss together with phone controls), audience (friends sharing one screen), and first action (try the sample). The live demo shows its persistent sample label, starts with Mina and Ivo, boosts, resets, exits, and does not add a demo page view. Live axe found zero serious or critical violations on all public routes, high contrast, reduced motion, and a connected controller. `/opt/fleet/lib/verify-url.sh` passed home and demo with no browser errors, valid titles, `lang=en`, one H1, main landmarks, and complete image alt text. The designed unknown route returns HTTP 404.
 
+## Earlier finding disposition
+
+| Earlier finding | Current disposition |
+| --- | --- |
+| Wrong public build identity | Fixed. `/health` returns the exact implementation SHA above. |
+| Blank cold offline reload or stale stable asset | Fixed earlier and rechecked by the local and live PWA update/offline regressions. |
+| Process-local rooms on multiple replicas | Fixed. Live control-plane read-back is one allowed and one running replica; 20 protocol and 20 isolated browser joins passed. |
+| Page-view or WebSocket limits admitted overload | Fixed. Live page views returned 20 `204` plus 5 `429`; a fresh live WebSocket client returned 120 `101` plus one `429`, with `Retry-After`. |
+| Missing default startup configuration log | Fixed and covered by the PORT-only runtime contract. |
+| Missing demo, claims contract, desktop first action, or designed 404 | Fixed and covered by all 12 claims, the first-read test, and live route checks. |
+| README unlisted room/socket capacity promises | Fixed by removing those visitor-facing promises. |
+| HSTS, pasted punctuated room code, responsive/focus/reduced-motion concerns | Rechecked by browser-quality, browser-join, and live axe checks. |
+
 ## Remaining work
 
 - The researched success measure still needs a moderated mixed-ability human playtest: 80% of players identifying their role and contributing within 30 seconds, and groups completing a round without facilitation. Automation verifies the cues and controls, not that human outcome.
