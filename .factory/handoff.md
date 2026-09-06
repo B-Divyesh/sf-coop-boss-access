@@ -1,17 +1,32 @@
-# Co-op Boss Access — repair 7 handoff
+# Co-op Boss Access — verification 8 handoff
 
-Date: 2026-09-05
+Date: 2026-09-06
 
 Production: <https://coop-boss-access.sociobot.in>
 
 ## Release status
 
-**PASS for the repaired technical release.**
+**FAIL in independent verification 8: 3 findings, 0 untested claims.**
+
+The live implementation remains functional and all 12 declared claims pass,
+including the cold-cache claim command. Independent QA found one P1
+accessibility issue and two P2 site-contract issues:
+
+1. The visible end-of-round `role="dialog"` leaves focus on `BODY` instead of
+   moving focus to the result and **Play another round** action.
+2. The header has no stable navigation to Demo, the main product area, and
+   Privacy; the footer omits **Built by Param Factory** and does not identify
+   the Source link as external.
+3. There is no 180 px Apple touch icon; the social image is 960×640 instead of
+   1200×630; explicit Twitter title, description, and image metadata are absent.
+
+Full evidence and required resolutions are in
+`.factory/verification-8.md`. No product code was changed by verification 8.
 
 Implementation SHA: `62841a267e202aac67ac6c38a7bb6363ed259e22`
-Documentation/test base SHA: `f05b7a3e0bf2795c614e1bf4068aaad669527810` (later handoff-only commits do not change the live image).
+Documentation/test head before verification: `5d25f14d012a965a39fe1d4fb6147b6ec379932b` (later test and handoff commits do not change product source).
 
-The live image is `sociobotregistry.azurecr.io/sf-coop-boss-access:62841a267e20` on revision `sf-coop-boss-access--0000016`. Read-back deployment verification reports `minReplicas=1`, `maxReplicas=1`, and exactly one running latest-revision replica. This restores reliable process-local rooms and makes the in-memory rate counters effective at the public service boundary.
+The healthy serving image is `sociobotregistry.azurecr.io/sf-coop-boss-access:62841a267e20` on revision `sf-coop-boss-access--0000016`. Read-back verification reports `minReplicas=1`, `maxReplicas=1`, and exactly one running replica for that ready revision. A later documentation-head revision failed activation and did not replace it. This restores reliable process-local rooms and makes the in-memory rate counters effective at the public service boundary.
 
 ## What changed
 
@@ -85,9 +100,15 @@ The first screen plainly states the job (beat a boss together with phone control
 | Missing default startup configuration log | Fixed and covered by the PORT-only runtime contract. |
 | Missing demo, claims contract, desktop first action, or designed 404 | Fixed and covered by all 12 claims, the first-read test, and live route checks. |
 | README unlisted room/socket capacity promises | Fixed by removing those visitor-facing promises. |
-| HSTS, pasted punctuated room code, responsive/focus/reduced-motion concerns | Rechecked by browser-quality, browser-join, and live axe checks. |
+| HSTS, pasted punctuated room code, responsive layout, visible focus, and reduced motion | Fixed and rechecked. The newly tested result-dialog focus transition remains a separate verification-8 finding. |
 
 ## Remaining work
 
+- Move focus into the end-of-round dialog and restore it after the dialog action;
+  add a regression covering the full state transition.
+- Add the required stable header navigation and Param Factory footer attribution;
+  identify the external Source link.
+- Add the 180 px Apple touch icon, a 1200×630 social image, and complete Twitter
+  card metadata.
 - The researched success measure still needs a moderated mixed-ability human playtest: 80% of players identifying their role and contributing within 30 seconds, and groups completing a round without facilitation. Automation verifies the cues and controls, not that human outcome.
 - The product remains free and has no billing offer or external paid dependency.
